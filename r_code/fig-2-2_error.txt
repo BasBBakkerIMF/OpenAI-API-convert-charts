@@ -1,0 +1,1 @@
+BadRequestError: Error code: 400 - {'error': {'message': 'Error while downloading file. Upstream status code: 403.', 'type': 'invalid_request_error', 'param': 'url', 'code': 'invalid_value', 'innererror': {'code': 'StorageAccessDenied'}}}
