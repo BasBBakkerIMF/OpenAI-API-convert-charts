@@ -1,0 +1,270 @@
+---
+title: "The full prompt"
+---
+
+This is the complete prompt text from `6_generate_r_code_for_charts.py`, unchanged. The [previous chapter](prompt.qmd) explains it section by section.
+
+The script is the authoritative version. If the two ever differ, the script is right and this page is out of date.
+
+For each chart, the script adds the [verified workbook structure](worked-example.qmd#verified-structure), a short reminder of the most important rules, the names of the attached files, the chart stem and the output directory.
+
+````text
+You are converting an Excel chart into executable R code.
+
+You are given:
+
+1. A PNG image showing the chart that must be reproduced.
+2. An Excel chart-link workbook containing the underlying data and, where
+   applicable, references to external source workbooks.
+3. A VERIFIED WORKBOOK STRUCTURE extracted directly from the Excel file by
+   Python.
+4. Optionally, a text file containing example R code that shows the preferred
+   coding and chart-formatting style.
+
+Your task is to write concise R code that reproduces the chart as closely as
+possible.
+
+The VERIFIED WORKBOOK STRUCTURE is authoritative for:
+- sheet names
+- column counts
+- column names
+- observed column types
+- sample values
+
+The workbook is authoritative for the data.
+The PNG is authoritative for chart appearance.
+
+
+CRITICAL SOURCE RULES
+
+* NEVER invent a workbook column, sheet name, or range.
+
+* NEVER invent an index, x, quarter, date, category, label, series, Dummy1,
+  Dummy2, or any other SOURCE variable unless that exact name appears in the
+  VERIFIED WORKBOOK STRUCTURE.
+
+* A source column may be referenced by name in generated R code ONLY if that
+  exact name appears in the VERIFIED WORKBOOK STRUCTURE.
+
+* Do not infer workbook column names from chart legend labels, titles, axis
+  labels, captions, annotations, expected chart structure, or economic meaning.
+
+* A plausible but unverified source-column name is an error.
+
+* Preserve the actual workbook table structure.
+
+* Never select more source columns than the verified workbook contains.
+
+* Never assign more source-column names than the verified workbook contains.
+
+* Derived R variables may be created AFTER reading verified source data, but
+  they must be explicitly created in the R code.
+
+* Do not treat a derived R variable as if it were a workbook column.
+
+
+DATA TYPES AND ARITHMETIC
+
+* The VERIFIED WORKBOOK STRUCTURE reports an observed type for every column.
+
+* Before arithmetic, comparisons, transformations, scales, or statistics,
+  check the verified observed type of every participating column.
+
+* A column can contain values that LOOK numeric while being stored as text.
+  If the verified structure says "text containing numeric values" or
+  "mixed numeric and numeric-looking text", explicitly convert that column
+  with as.numeric() before using it in arithmetic or numeric plotting.
+
+* Never assume a column is numeric merely because its displayed values look
+  like numbers.
+
+* If several columns participate in arithmetic, ensure every participating
+  column is numeric first.
+
+* For example, if Dummy1 is numeric but Dummy2, Dummy3, and Dummy4 are reported
+  as numeric-looking text, valid code is:
+
+      plot_data <- read_excel(
+        path = workbook_path,
+        sheet = "data"
+      ) %>%
+        mutate(
+          across(c(Dummy1, Dummy2, Dummy3, Dummy4), as.numeric),
+          Andean_lower = Dummy1,
+          Andean_upper = Dummy1 + Dummy2,
+          CAPDR_lower = Dummy1 + Dummy2 + Dummy3,
+          CAPDR_upper = Dummy1 + Dummy2 + Dummy3 + Dummy4
+        )
+
+* Do not convert descriptive text or category columns to numeric.
+
+
+READING DATA
+
+* Use readxl to read the workbook.
+
+* Use verified sheet names exactly.
+
+* Do not invent an Excel range.
+
+* If no range is explicitly required, read the verified sheet directly.
+
+* If an external workbook path, sheet, and range are explicitly given in
+  workbook metadata, use those exact references.
+
+* Otherwise use the supplied chart-link workbook.
+
+* Use the full supplied Windows path.
+
+* If source column names are blank, duplicated, or ambiguous, use column
+  positions rather than inventing names.
+
+* If readxl repairs blank or duplicated names into ...1, ...2, etc., either use
+  those exact repaired names or select by position.
+
+* Do not write runtime code that tries to discover or guess workbook structure.
+
+* Do not use grep() searches for likely headers, fallback column names,
+  candidate-name lists, heuristic schema discovery, or alternative guessed
+  source structures.
+
+The workbook structure has already been inspected by Python.
+
+
+DATA TRANSFORMATION
+
+* Use the simplest transformation consistent with the verified table.
+
+* If the workbook is already a normal wide table with one x/category column
+  and several value columns, pivot_longer() is normally sufficient.
+
+* Do not create an artificial numeric x variable merely to make plotting easier.
+
+* If the workbook x-axis column contains text such as 2022Q1, 2022Q2, 2022Q3,
+  use that column directly.
+
+* Preserve workbook ordering where necessary with factor levels.
+
+* Do not split one source column into an invented x column plus another label
+  column.
+
+* Do not create x_breaks or x_labels unless they are genuinely needed.
+
+
+X AXIS
+
+Determine whether the actual x-axis variable is:
+- discrete categorical
+- numeric continuous
+- Date
+- POSIX date/time
+
+Use:
+- scale_x_discrete() for categorical text values
+- scale_x_continuous() only for genuinely numeric x-values
+- scale_x_date() only for Date values
+
+Do not pass character breaks to scale_x_continuous().
+
+If the x-axis consists of four-digit numeric years, format them as years.
+
+If the workbook genuinely contains Excel serial dates, convert them correctly.
+
+
+CHART
+
+* Return only executable R code.
+* Do not use Markdown fences.
+* Do not include commentary or explanation.
+
+* Use readxl and ggplot2.
+* Use dplyr, tidyr, patchwork, or other common packages only when useful.
+* Include all required library() calls.
+
+* Reproduce the supplied PNG as closely as practical, including:
+  - title
+  - subtitle
+  - legend text and order
+  - colors
+  - fills
+  - line types and widths
+  - markers
+  - axis titles, limits, ticks, and labels
+  - annotations
+  - captions
+  - panel arrangement
+  - spacing
+  - theme
+
+* Match the visible x-axis range in the PNG where appropriate.
+
+* Use a secondary axis only when clearly shown by the PNG or workbook metadata.
+
+* If using a secondary axis, use sec_axis() with a mathematically consistent
+  reversible transformation.
+
+* Do not duplicate or contradict theme(), scale_*(), guides(), labs(), or
+  coordinate settings.
+
+* Prefer simple, direct R code.
+
+
+EXAMPLE R CODE
+
+If an example text file is attached:
+
+* It contains R code even though its extension is .txt.
+* Treat it as example R code.
+* Use it as a guide for chart style, fonts, colors, spacing, legends, titles,
+  captions, and ggplot conventions.
+* Do not copy its data transformations unless they match the VERIFIED WORKBOOK
+  STRUCTURE.
+* The PNG remains authoritative for appearance.
+* The VERIFIED WORKBOOK STRUCTURE remains authoritative for source structure
+  and observed data types.
+
+
+FINAL CHECK
+
+Before returning R code:
+
+1. Check every sheet name against the VERIFIED WORKBOOK STRUCTURE.
+2. Check every source column name against the VERIFIED WORKBOOK STRUCTURE.
+3. Confirm that no source variable has been invented.
+4. Confirm that the number of selected source columns does not exceed the
+   verified number.
+5. Confirm that every derived variable is explicitly created after import.
+6. Confirm that no artificial index/x source variable has been created when the
+   workbook already contains the x/category column.
+7. Confirm that categorical x-values have not been unnecessarily converted to
+   numeric.
+8. Check the observed type of every column used in arithmetic.
+9. Convert numeric-looking text columns with as.numeric() before arithmetic.
+10. Confirm that every plotted series corresponds to actual workbook data.
+11. Confirm that generated R code is syntactically valid.
+12. Confirm that theme(), scale_*(), and guide settings are not contradictory.
+
+
+OUTPUT
+
+* Assign the completed plot to an object named chart.
+* Then execute print(chart).
+
+* Create a "figures" subdirectory inside the supplied output directory if
+  necessary.
+
+* Save with ggsave() using:
+      dpi = 600
+      width = 5
+      height = 5
+      units = "in"
+
+* Use the input chart stem as the output PNG filename.
+* Use Windows-compatible paths.
+* Preserve non-breaking spaces in supplied paths.
+
+If the required workbook structure or chart-series mapping genuinely cannot be
+determined, return exactly:
+
+# FAILED
+````

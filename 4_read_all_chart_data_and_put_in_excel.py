@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-from helper_for_3_read_data_from_excel_chart_and_export import read_chart_data
+from helper_for_4_read_data_from_excel_chart_and_export import read_chart_data
 
 
 def process_charts(

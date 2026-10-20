@@ -1,0 +1,46 @@
+---
+title: "Step 7: Run all the R scripts"
+subtitle: "`7_create_runall.py`"
+---
+
+
+## What it does
+
+The script writes an R script, `K:\r_code\runall.R`, that runs every chart's R code in turn. You then run `runall.R` in R. Each chart script saves its figure to `K:\r_code\figures\<stem>.png`, and at the end you get a list of the scripts that failed.
+
+```r
+# In RStudio: open r_code/r_code.Rproj, then
+source("runall.R")
+```
+
+## Why it is done this way
+
+**One run checks every chart.** Generated code is only useful if it runs. Running all the scripts together shows at once which charts work and which need attention. Their figures can then be compared side by side with the originals in `excel_and_png/`.
+
+**One failure does not stop the rest.** Each script is run inside `tryCatch()`. If one fails, its file name and error message are recorded and the loop continues. The summary at the end lists every failed file with its error:
+
+```text
+============================
+FILES WITH ERRORS
+============================
+K:/r_code/fig-2-2.R -- object 'Dummy2' not found
+```
+
+**The list comes from the chart list, not from the folder.** The stems are taken from `chart-list.xlsx`, so `runall.R` covers every chart the REO should have. A chart whose R code was never generated shows up as an error instead of being silently skipped.
+
+**It is generated, not written by hand.** When the chart list changes, re-running this step keeps `runall.R` in sync with it.
+
+## Inputs and outputs
+
+| | |
+|---|---|
+| **Reads** | `K:\chart-list.xlsx` |
+| **Writes** | `K:\r_code\runall.R` |
+| **`runall.R` then reads** | `K:\r_code\<stem>.R`, and through them `K:\excel_and_png\<stem>.xlsx` |
+| **`runall.R` then writes** | `K:\r_code\figures\<stem>.png` |
+
+## Things to watch for
+
+- `runall.R` uses `K:/` paths, so [step 1](step-1-map-drives.qmd) must have been run in the current session.
+- All scripts run in the same R session, so objects created by one script remain for the next. Each generated script sets up its own data, so this is normally harmless. If a chart behaves differently in `runall.R` than when run alone, start a clean session and run it alone.
+- The required R packages (`readxl`, `ggplot2`, `dplyr`, `tidyr` and sometimes `patchwork`) must be installed.

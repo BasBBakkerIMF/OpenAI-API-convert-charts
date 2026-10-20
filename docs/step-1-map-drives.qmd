@@ -1,0 +1,39 @@
+---
+title: "Step 1: Map drives"
+subtitle: "`1_map_drives.py`"
+---
+
+
+## What it does
+
+The script gives two folders short drive letters, using the Windows `subst` command:
+
+| Drive | Points to | Used for |
+|---|---|---|
+| `L:` | The REO chart folder on the shared drive (`Q:\DATA\RS\REO\2026 Fall\Charts`) | The File Locator and the source chart workbooks |
+| `K:` | This project folder, in the user's OneDrive | Everything the pipeline reads and writes |
+
+For each drive, it first removes any existing mapping (`subst K: /D`, with errors ignored) and then creates the new one. That makes the script safe to run again at any time.
+
+## Why it is done this way
+
+**The real paths are long and awkward.** The project folder sits in a OneDrive/SharePoint folder such as `C:\Users\<user>\International Monetary Fund (PRD)\WHD-AI-Core - General\...`. Paths like this are long, differ between users, and sometimes contain a non-breaking space that looks identical to a normal space but does not match one. A path that looks right then fails with "file not found".
+
+**The paths end up inside generated code.** The R scripts written in step 6 contain the path to their data file, for example `k:/excel_and_png/fig-2-3.xlsx`. With a fixed drive letter, those scripts work for anyone who has run step 1, whatever their own OneDrive path is.
+
+**`subst` needs no administrator rights.** It only creates an alias for a local folder, so no network-drive set-up or IT request is needed.
+
+## When to run it
+
+At the start of every session. `subst` mappings last until you log off or restart.
+
+## What to change
+
+- **For a new REO**, point `L:` to the new chart folder.
+- **For a different user**, change the `K:` target to wherever that user's copy of this project is. The default path contains a specific user name.
+- **For your own run**, point `K:` at a separate working folder (with a copy of `example.txt`), not at the cloned repository. Otherwise the pipeline overwrites the results that come with the repository. See [Getting the code](getting-started.qmd#getting-the-code).
+
+## Things to watch for
+
+- If `K:` or `L:` is already in use as a real network drive on your machine, `subst` will fail. Pick other letters, and update the paths in every other script to match.
+- The mapping lives in your Windows session only. Anything running as a different user, such as a scheduled task, will not see it.
