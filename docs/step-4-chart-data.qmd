@@ -1,0 +1,64 @@
+---
+title: "Step 4: Extract the data behind each chart"
+subtitle: "`4_read_all_chart_data_and_put_in_excel.py` and `helper_for_4_read_data_from_excel_chart_and_export.py`"
+---
+
+
+## What it does
+
+For every row in `chart-list.xlsx`, the script opens the source workbook, finds the named chart, and reads exactly the data that chart plots. It saves that data as `K:\excel_and_png\<stem>.xlsx`, next to the chart's PNG from step 2.
+
+The main script loops over the chart list. The work is done by `read_chart_data()` in the helper module.
+
+## Why it is done this way
+
+**The chart knows where its data is.** A source workbook usually holds much more than one chart's data: raw series, calculations, notes and other charts. Guessing which ranges a chart uses, whether by a person, a script or an AI model, is error-prone. But every Excel chart stores, for each series, the exact formula of the cells it plots (for example `'Data'!$B$2:$B$40`). Reading those formulas removes the guesswork completely.
+
+**The model should see only what the chart plots.** Giving the model in step 6 a small table with exactly the plotted series makes its task much easier. The alternative is a whole workbook in which it must find the relevant part. A small table also makes the generated R code simpler, because it reads one tidy sheet.
+
+**Excel automation proved fragile.** Earlier versions found the chart data by automating Excel. This version reads the `.xlsx` file directly. An `.xlsx` file is really a compressed folder of small text files, one of which describes each chart. The script follows the links inside it (sheet → chart → the cells of each series). It needs no Excel and gives the same result every time.
+
+**Hidden rows and columns are left out.** By default, Excel does not plot cells in hidden rows or columns. The script drops them too, so the extracted data matches the published chart point for point.
+
+**The R code reads this file, not the source workbook.** The generated R scripts read `K:\excel_and_png\<stem>.xlsx`. So the R chart depends on one small, stable file, not on a large working workbook that may be restructured later.
+
+## How the data is laid out
+
+**Line, column, bar and area charts** produce one wide table:
+
+| category | Series A | Series B | ... |
+|---|---|---|---|
+| 2022 | 1.2 | 0.8 | ... |
+
+- `category` comes from the first series' category range (the x-axis labels).
+- Each series becomes a column named after the series name in the chart's legend. Duplicate names get a suffix such as `(2)`.
+
+**Scatter charts** produce one long table with columns `series`, `label`, `x`, `y`. If the chart uses Excel's *Value From Cells* data labels (common for country labels), those labels are captured in `label`. Otherwise `label` is the series name.
+
+**Two-panel figures** (*Second chart* filled in) produce two sheets, `datal` and `datar`, for the left and right charts. Single charts produce one sheet, `data`.
+
+## Details that matter
+
+- **Values are the ones Excel last saved.** The script does not recalculate formulas. It reads the results Excel stored when the workbook was last saved. If links or formulas have changed since then, open the workbook in Excel, let it recalculate, and save it before running this step.
+- **The cells come first.** A chart also keeps its own copy of the values it last plotted. The script uses the cells the series points to, and falls back on the chart's copy only when there are no cells, for example when values were typed directly into the series.
+- **Sheet names with spaces or apostrophes** (e.g. `'John''s Data'!$B$2:$B$13`) are handled.
+
+## Inputs and outputs
+
+| | |
+|---|---|
+| **Reads** | `K:\chart-list.xlsx`, and each source workbook listed in it |
+| **Writes** | `K:\excel_and_png\<stem>.xlsx` |
+
+If *Picture name in this file* is empty, the stem is made from the figure number instead (`2.3` → `fig-2-3`).
+
+## What to change
+
+For a new REO, update `figure_column` in the `__main__` block.
+
+## Things to watch for
+
+- **Errors do not stop the run.** For each failing chart, the script prints the error with the file, sheet and chart name, then continues. Scroll through the output for `ERROR` after each run.
+- **"No chart named …"** means the chart name in the File Locator does not match Excel. The message lists the chart names actually on that sheet.
+- **Series that refer to another workbook** (external links) cannot be read, because only the one workbook is opened.
+- **Chart types other than category and scatter charts** (for example bubble or combination charts with unusual layouts) may extract incompletely. Check the output file against the PNG.

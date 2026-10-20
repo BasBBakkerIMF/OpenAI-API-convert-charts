@@ -1,0 +1,50 @@
+---
+title: "Step 3: Build the chart list"
+subtitle: "`3_create_chart_list.py`"
+---
+
+
+## What it does
+
+The script reads the table on the current edition's sheet of the File Locator, keeps only the rows that describe a chart, and saves the result as `K:\chart-list.xlsx`.
+
+Each row of the chart list says where one figure comes from:
+
+| Column | Meaning |
+|---|---|
+| *October 2026 REO Figure* | The figure number in the REO |
+| *File Location* | The source workbook that holds the chart |
+| *Sheet* | The sheet in that workbook |
+| *Chart name in sheet* | The chart's name in Excel, e.g. `Chart 4` |
+| *Second chart* | For two-panel figures, the name of the right-hand chart |
+| *Picture name in this file* | The stem, e.g. `fig-2-3` |
+
+## Why it is done this way
+
+**The File Locator is the single source of truth.** The REO team already records the location of every chart there. Reading it directly means nobody has to keep a second list in sync.
+
+**A small, clean copy is easier to work with than the original.** The File Locator is a working document. It has a title row, columns the pipeline does not need, and rows that are headings or notes rather than charts. Steps 4, 5 and 7 all need the same cleaned table. Producing it once means each later step can simply read it, without any clean-up of its own.
+
+**It is saved as Excel so you can check and fix it.** You can open `chart-list.xlsx`, look at it and, if needed, correct a row before running step 4. You can do that without changing the File Locator itself.
+
+## How the cleaning works
+
+- The header is on the **second** row of the sheet (`header=1`), and only columns **B, C and E–H** are read.
+- Rows with no figure number or no sheet name are dropped. These are headings, notes or charts not yet located.
+- Empty *Second chart* cells are turned into `None`, so later steps can simply test whether a second chart exists.
+
+## Inputs and outputs
+
+| | |
+|---|---|
+| **Reads** | the File Locator, sheet `"October 2026"` |
+| **Writes** | `K:\chart-list.xlsx` |
+
+## What to change
+
+For a new REO, update the File Locator file name, the sheet name and `figure_column` in the `__main__` block.
+
+## Things to watch for
+
+- If the layout of the File Locator changes (a column inserted or the header moved), the fixed `usecols="B,C,E:H"` and `header=1` will pick up the wrong columns. Check the printed table after each run.
+- Re-running the script overwrites `chart-list.xlsx`, including any corrections you made there by hand. Make lasting fixes in the File Locator.

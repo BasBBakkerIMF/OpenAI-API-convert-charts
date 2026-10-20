@@ -1,0 +1,7 @@
+# The pipeline steps {.unnumbered}
+
+The following chapters describe the seven scripts one by one, in the order they are run. Each chapter says what the script does, why it works the way it does, what it reads and writes, what to change for a new REO, and what to watch out for.
+
+These chapters are for people who run or change the pipeline. To understand the approach, the [overview](index.qmd), the [worked example](worked-example.qmd) and [the prompt, explained](prompt.qmd) are enough.
+
+All steps except step 6 are ordinary scripts that give the same result every time. Step 6 is the only one that uses the AI model.

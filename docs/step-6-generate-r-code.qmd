@@ -1,0 +1,217 @@
+---
+title: "Step 6: Generate R code with the AI model"
+subtitle: "`6_generate_r_code_for_charts.py`"
+---
+
+
+## What it does
+
+For each stem, the script sends the chart's picture and data to an OpenAI model and saves the R code it returns as `K:\r_code\<stem>.R`. This is the only step that uses AI. All the earlier steps exist to give it the best possible inputs.
+
+## How to run it
+
+```powershell
+python 6_generate_r_code_for_charts.py                   # all stems in stems.txt
+python 6_generate_r_code_for_charts.py fig-2-3 fig-9-2   # only these charts
+python 6_generate_r_code_for_charts.py --all             # every PNG + xlsx pair in excel_and_png
+```
+
+## What happens for each chart
+
+1. **Check the inputs.** The script makes sure `<stem>.png` and `<stem>.xlsx` exist. If one is missing, it lists the files that start with the stem, which usually shows a typo.
+2. **Inspect the data file locally.** For each sheet, it records the exact column names, the number of rows and columns, the first 12 rows, and an *observed type* for each column.
+3. **Upload** the PNG, the data `.xlsx` and `example.txt` to the API.
+4. **Send the prompt**, the verified structure and the three files to the model.
+5. **Check the reply** and retry once if it is unusable.
+6. **Save** the R code, or an error file.
+7. **Delete** the uploaded files from the API and report token usage.
+
+## How the chart is sent to OpenAI {#how-sent}
+
+Everything goes through OpenAI's API, using OpenAI's Python package (`openai`). By default it is routed through the **IMF API gateway** rather than going straight to OpenAI. For each chart, three things happen.
+
+```{mermaid}
+sequenceDiagram
+    participant S as Step 6 script<br/>(your machine)
+    participant G as IMF API gateway
+    participant O as OpenAI model
+
+    Note over S: Sign in with IMF account<br/>(first time only, then remembered)
+    S->>G: 1. Upload chart PNG, data .xlsx, example.txt
+    G-->>S: a file ID for each
+    S->>G: 2. One request: instructions + verified structure<br/>+ the three file IDs
+    G->>O: forwards the request
+    O-->>G: R code (as text)
+    G-->>S: R code + token count
+    Note over S: Check the reply, then save it as stem.R
+    S->>G: 3. Delete the three uploaded files
+```
+
+### 1. Connect and sign in
+
+When the script starts, `get_client()` in `helper_for_6_imf_openai_helper.py` sets up the connection:
+
+- It reads `API_URL`, `API_KEY`, `CLIENT_ID` and `TENANT_ID` from the [`.env` file](getting-started.qmd#env-file).
+- It signs you in with your IMF Microsoft account. The first time, a browser window opens. After that, the sign-in is remembered in `%LOCALAPPDATA%\.IdentityService` and renewed silently.
+- It creates an OpenAI client that sends every request to the gateway address (`API_URL`), with your API key and your sign-in token attached.
+
+From then on, the script talks to the gateway exactly as it would talk to OpenAI itself. With the alternative `helper_for_6_home_openai.py`, the same client goes directly to OpenAI using only `OPENAI_API_KEY`.
+
+### 2. Upload the files
+
+The three files are uploaded one at a time with `client.files.create()`:
+
+| File | Why it is sent |
+|---|---|
+| `excel_and_png/<stem>.png` | The picture the R chart must match |
+| `excel_and_png/<stem>.xlsx` | The chart's data |
+| `example.txt` | The house-style example (if `example_file` is set) |
+
+Each upload returns a **file ID**, a short reference such as `file-abc123`. The request in the next step refers to the files by these IDs instead of including them.
+
+**Why upload first instead of sending everything in one request?** The IMF API gateway limits the size of a single request (the *payload*) to 100 KB. Sending the files inside the request would mean converting each one to text and pasting it in, which makes them about a third larger. Together with the instructions (about 8 KB), that fits for most charts, but not for all. For the October 2026 REO, 5 of the 38 charts would exceed the limit. The largest, `fig-3-2`, has a 400 KB data file and would need a request of about 640 KB. The gateway rejects such requests.
+
+Uploading each file separately avoids the problem for every chart. The request itself then carries only text (the instructions and the data description) plus three short file IDs, and the model fetches the files by their IDs on OpenAI's side. Each upload is its own call, so it is not limited by the size of the other files.
+
+This is also why the files are deleted afterwards ([step 4](#clean-up) below). Uploaded files stay stored with the service until they are removed.
+
+### 3. Send one request, get one reply
+
+The script then sends a single request with `client.responses.create()` (OpenAI's *Responses API*). In outline:
+
+```python
+response = client.responses.create(
+    model="gpt-5.6-sol",
+    max_output_tokens=16000,
+    input=[{
+        "role": "user",
+        "content": [
+            {"type": "input_text",  "text": prompt + verified_structure + file_names},
+            {"type": "input_image", "file_id": png_id, "detail": "high"},
+            {"type": "input_file",  "file_id": xlsx_id},
+            {"type": "input_file",  "file_id": example_id},
+        ],
+    }],
+)
+r_code = response.output_text
+```
+
+The request is a single message with four parts:
+
+- **The text**: the [prompt](prompt.qmd), followed by the [verified workbook structure](worked-example.qmd#verified-structure) of this chart's data, the attached file names, the chart's stem and the output folder.
+- **The picture**, sent at `"detail": "high"` so the model sees small elements such as legend text, tick labels and markers.
+- **The data workbook**, as a file.
+- **The style example**, as a file.
+
+The reply's text (`response.output_text`) is the R code. `max_output_tokens=16000` caps how long the reply can be. That is more than enough for a chart script, and it stops a runaway reply from running up costs.
+
+If the reply is unusable, the **same** request is sent again, without uploading the files a second time.
+
+### 4. Clean up {#clean-up}
+
+Whether the chart succeeded or failed, the uploaded files are then deleted with `client.files.delete()`, so nothing from this chart is left stored with the service.
+
+### Each chart is a separate conversation
+
+Every chart gets its own fresh request. The model has no memory of earlier charts, and nothing from one chart is carried into the next. This keeps charts independent: a confusing chart cannot affect the others, and re-running one chart gives it a fresh start.
+
+### What leaves your machine
+
+Per chart: the published chart picture, the extracted data file (only the plotted series, not the source workbook), the style example, and the prompt text. Python reads the File Locator, the source workbooks and everything else locally, and none of it is sent.
+
+## Why it is done this way
+
+### Each input has one job
+
+The model receives four inputs, and the prompt says which one is authoritative for what:
+
+| Input | Authoritative for |
+|---|---|
+| The **PNG** | Appearance: colours, lines, markers, legend, titles, annotations |
+| The **data file** | The values |
+| The **verified workbook structure** | Sheet names, column names and data types |
+| **`example.txt`** | Coding style and house formatting |
+
+When inputs seem to disagree (say, the legend text in the picture differs from a column name), the model does not have to decide which to believe. The prompt has already decided.
+
+### The workbook structure is checked by Python first
+
+This is the most important part of the step. In early versions, the model often wrote code that looked right but failed when it ran, for two main reasons:
+
+- **It invented column names.** Seeing "Andean region, lower bound" in the legend, it would write `Andean_lower` instead of the actual column name.
+- **It treated numbers stored as text as numbers.** R then reads the column as text, and arithmetic fails.
+
+Python can establish both facts with certainty. Before calling the model, the script lists the real sheet and column names and classifies each column's values. The classes are *numeric*, *text*, *text containing numeric values*, *mixed numeric and numeric-looking text*, and so on. This goes into the prompt under the heading **VERIFIED WORKBOOK STRUCTURE**, and the model is told it is authoritative.
+
+### Why the prompt is long and strict
+
+Most of the prompt consists of rules: never invent a sheet, column or range; convert numeric-looking text with `as.numeric()`; don't write R code that searches for likely column names at run time; use the x-axis column as it is instead of building an artificial index; end with a 12-point final check. Each rule is there to stop a specific mistake that showed up in generated code. Shortening the prompt is likely to bring those mistakes back. [The prompt, explained](prompt.qmd) goes through it section by section.
+
+### The model is allowed to fail
+
+The prompt tells the model to answer exactly `# FAILED` if it cannot work out the chart. A clear failure costs one look at an error file. Confident but wrong code can go unnoticed.
+
+### The reply is checked and retried
+
+Model output varies between runs. A reply is treated as unusable if it is empty, is `# FAILED`, or starts like a refusal ("I'm sorry", "I am unable to"…). The script then waits two seconds and tries again, up to `MAX_ATTEMPTS` (2) in total. The model sometimes wraps its code in formatting marks (```` ```r ```` … ```` ``` ````) despite being told not to. These are removed, because they would stop the R file from running.
+
+### Uploaded files are deleted
+
+After each chart, whether it succeeded or not, the uploaded files are deleted from the API so chart data does not stay on the service.
+
+### Token usage is reported
+
+Each call prints its input and output tokens, and a running and final total. This makes the cost of a run visible. Re-running a single chart is cheap. Re-running all of them is not.
+
+## What the generated R code must do
+
+The prompt fixes the shape of every R script, so they all behave the same way in [step 7](step-7-runall.qmd):
+
+- read the data with `readxl` from `K:\excel_and_png\<stem>.xlsx`;
+- build the chart with `ggplot2` (plus `dplyr`, `tidyr` or `patchwork` where useful);
+- store the plot in an object called `chart` and `print(chart)`;
+- save it with `ggsave()` to `K:\r_code\figures\<stem>.png` at 600 dpi, 5 × 5 inches.
+
+## Settings
+
+At the top of the script:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `model` | `"gpt-5.6-sol"` | The model to use |
+| `example_file` | `k:\example.txt` | House-style example; set to `None` to send none |
+| `stems_file` | `k:\stems.txt` | The default list of charts |
+| `chart_dir` | `k:/excel_and_png` | Where the PNGs and data files are |
+| `output_dir` | `k:/r_code` | Where the R code is written |
+| `MAX_ATTEMPTS` | `2` | Tries per chart |
+| `SAMPLE_ROWS` | `12` | Rows shown to the model per sheet |
+
+The model is called with `max_output_tokens=16000`.
+
+### Which API to use
+
+The client comes from one of two helper modules. Switch between them with the import near the top of the script:
+
+- **`helper_for_6_imf_openai_helper`** (default) goes through the IMF API gateway. It signs in with your IMF Microsoft account. The first time, a browser window opens; after that the sign-in is remembered from `%LOCALAPPDATA%\.IdentityService`. It needs `API_KEY`, `CLIENT_ID`, `TENANT_ID` and `API_URL` in `.env`.
+- **`helper_for_6_home_openai`** goes directly to OpenAI. It needs `OPENAI_API_KEY` in `.env`.
+
+[Creating the `.env` file](getting-started.qmd#env-file) shows what the file looks like and how to make it.
+
+## The style example
+
+`example.txt` is an R script (a copy of `example.R`) that shows the preferred fonts, colours, spacing and `ggplot2` conventions. It has a `.txt` extension so it can be uploaded as a document, and the prompt tells the model it contains R code. The model is told to follow its style but **not** its data handling, because the example chart's data has a different structure.
+
+To change the look of all charts, edit `example.R`, copy it to `example.txt`, and re-run this step.
+
+## Inputs and outputs
+
+| | |
+|---|---|
+| **Reads** | `stems.txt`, `excel_and_png/<stem>.png`, `excel_and_png/<stem>.xlsx`, `example.txt`, `.env` |
+| **Writes** | `r_code/<stem>.R`, or `r_code/<stem>_error.txt` if generation failed |
+
+## Things to watch for
+
+- **Old error files are not removed.** If a chart failed once and later succeeded, both `<stem>.R` and an old `<stem>_error.txt` exist. Check the file dates.
+- **Re-running overwrites** `<stem>.R`, including any hand edits. Keep hand-fixed scripts elsewhere, or remove their stems from the list.
+- **Results vary.** If a chart comes out wrong, re-running that one stem is often enough.

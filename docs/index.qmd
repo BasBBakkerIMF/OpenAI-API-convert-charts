@@ -1,0 +1,147 @@
+---
+title: "Overview: how the pipeline is designed, and why"
+---
+
+## What this project does
+
+This project converts the charts of the Western Hemisphere Regional Economic Outlook (REO) from Excel to R. For every chart it produces a standalone R script that rebuilds the chart from its data with `ggplot2`.
+
+::: {layout-ncol=2}
+![The published Excel chart](images/fig-2-3-original.png)
+
+![The same chart, drawn by generated R code](images/fig-2-3-r.png)
+:::
+
+## How it works, in brief
+
+For every chart in the REO:
+
+1. **Find the chart.** The REO *File Locator* workbook says which Excel file, sheet and chart each figure comes from, and holds a picture of the published chart.
+2. **Collect the picture and the data.** A script saves the published picture and reads exactly the cells that the Excel chart plots into a small data file.
+3. **Describe the data precisely.** The script records the exact column names and whether each column holds numbers or text.
+4. **Ask an AI model to write the R code.** The model receives the picture (what the chart should look like), the data file, the description, an example of the house style, and detailed instructions. It returns an R script. Only these inputs leave your machine. See [what is sent to the model](#send-the-model-as-little-as-possible).
+5. **Run the R code and compare.** All R scripts are run, and each new chart is compared with the original.
+
+Only the fourth stage uses AI. Everything else is done by ordinary scripts that give the same result every time. (In practice, these five stages are carried out by seven scripts. They are listed [at the end of this page](#the-steps-at-a-glance).) The rest of this page explains why the process is set up this way. The [worked example](worked-example.qmd) follows the chart above through every step.
+
+::: {.callout-tip}
+## How to read this book
+
+- **To understand the approach**, read this overview, the [worked example](worked-example.qmd) and [the prompt, explained](prompt.qmd). No programming knowledge is needed.
+- **To use the converted R charts**, see [Getting and running the code](getting-started.qmd). You need R, but not Python.
+- **To run or change the pipeline**, read the pages on the seven steps as well.
+
+Technical terms are explained in the [glossary](appendix-glossary.qmd). Everything is in the GitHub repository **<https://github.com/BasBBakkerIMF/OpenAI-API-convert-charts>**.
+:::
+
+## The problem
+
+Each REO chart lives in its own Excel workbook on the shared drive, often in a sheet full of other calculations. Rewriting the charts in R by hand means, for every chart, finding the right cells, working out which series goes where, and copying the formatting. With several dozen charts per REO, that is a lot of tedious work.
+
+An AI model can do much of this work, but only if it is given the right inputs. Asked simply to "turn this Excel chart into R", a model will guess. It guesses which cells hold the data, invents column names that sound plausible, and assumes numbers are numbers when Excel has stored them as text. The result is code that looks right but fails when it runs, or worse, runs and plots the wrong thing.
+
+The whole design follows from that observation.
+
+## The core idea: let the computer establish the facts, and let the model make the judgement calls
+
+The work is split into two kinds:
+
+| Facts that can be established exactly: done by **Python** | Judgement calls: done by the **AI model** |
+|---|---|
+| Which chart belongs to which REO figure | Matching colours, line types and markers to the picture |
+| Which cells each series of the chart uses | Choosing axis ranges, ticks and labels |
+| Which rows and columns are hidden | Placing the legend, titles, notes and annotations |
+| The exact column names and whether each holds numbers or text | Writing clear `ggplot2` code in the house style |
+
+Nothing that has a single right answer is left to the model. Python works it out in advance and hands it to the model as fact. The model only does what requires interpretation, where its result can be checked by simply looking at the chart.
+
+```{mermaid}
+flowchart LR
+    subgraph Python["Python: establishes the facts"]
+        A["File Locator"] --> B["Chart list"]
+        B --> C["Chart data<br/>(read from the chart's<br/>own definition)"]
+        A --> D["Published picture"]
+        C --> E["Verified structure<br/>(names + types)"]
+    end
+    subgraph Model["AI model: judgement"]
+        F["R / ggplot2 code"]
+    end
+    D -- "what it should look like" --> F
+    C -- "the data" --> F
+    E -- "facts it must not contradict" --> F
+    G["example R code<br/>(house style)"] -- "how it should be written" --> F
+    F --> H["R chart"]
+
+    classDef box fill:#ffffff,stroke:#7a8ca3,color:#1f2a37
+    class A,B,C,D,E,F,G,H box
+    style Python fill:#eaf2fb,stroke:#7aa3cc,color:#1f2a37
+    style Model fill:#fdf1e4,stroke:#d9a46a,color:#1f2a37
+```
+
+Each input to the model has its own job. The **picture** settles appearance. The **data** settles the numbers. The **verified structure** settles names and types. The **example** settles coding style. The instructions to the model (the [prompt](prompt.qmd)) state this order of authority explicitly, so the model never has to choose which input to believe.
+
+## Design decisions
+
+### Start from the File Locator
+
+The REO team already keeps a *File Locator* workbook that records, for every figure, the source workbook, sheet and chart name, together with a picture of the published chart. The pipeline uses it as its single source of truth, so nobody has to maintain a separate list.
+
+### Read the chart's own definition, not the worksheet
+
+A source workbook usually holds far more than one chart's data: raw series, calculations, notes and other charts. Handing the whole workbook to the model would force it to guess which ranges the chart uses. That is exactly the kind of guess that goes wrong.
+
+But an Excel chart records exactly which cells each of its series uses. You can see this in Excel under *Select Data*. The pipeline reads that record and collects exactly those cells, leaving out hidden rows and columns just as Excel does. The model then receives a small, clean table with only what the chart plots.
+
+The pipeline reads the Excel files directly, without opening Excel. Earlier versions used Excel automation to find the data, and that proved fragile.
+
+### Give the model verified facts, and tell it they are verified
+
+Before anything is sent to the model, Python inspects the extracted data. It records the exact sheet and column names, the first rows, and what each column actually contains: numbers, text, or numbers stored as text. This description goes into the prompt, labelled as authoritative.
+
+This is the most important safeguard in the pipeline. It prevents two failures that came up again and again:
+
+- **Invented column names.** Without the real names, the model names columns after the legend (say `Andean_lower`) when the file actually says something else (say `Dummy1`). The code then fails.
+- **Numbers stored as text.** Excel often shows a number while storing it as text. R reads such a column as text, and calculations fail. Python detects this, and the prompt requires the code to convert those columns.
+
+### The picture sets the look, an example sets the style
+
+The data says nothing about colours, line widths, legend order or annotations. The published picture shows all of them, so it is the specification for appearance, and only for appearance. How the R code itself should be written (fonts, spacing, conventions) is shown by an example R script in the house style, which is easier to follow than a written style guide.
+
+### Let the model say "I can't"
+
+The AI model does not give the same answer every time, so each reply is checked before it is saved, and an unusable one is retried once. The model is also explicitly allowed to answer "FAILED" when it cannot work out a chart. A clear failure costs one look at an error file. A plausible but wrong chart can go unnoticed.
+
+### Send the model as little as possible
+
+For each chart, only four things are sent to OpenAI, through the IMF API gateway:
+
+- the **published chart picture**;
+- the **extracted data file**, which contains only the series the chart plots, not the source workbook;
+- the **house-style example** R code;
+- the **instructions** (the [prompt](prompt.qmd)), with the description of the data file.
+
+The File Locator, the source workbooks and everything else on the shared drive are read on your own machine and never sent. The uploaded files are deleted from the service as soon as each chart is done. Each chart is a separate request, so the model has no memory of earlier charts. The details are in [step 6](step-6-generate-r-code.qmd#how-sent).
+
+### Smaller practical choices
+
+These are explained in the chapters on the individual steps:
+
+- **Every chart has a short name, its *stem***, such as `fig-2-3`, which is used as the file name at every stage. That makes all files for one chart easy to find ([directory structure](getting-started.qmd#directory-structure)).
+- **One chart at a time.** A failure on one chart never stops the others, and any chart can be redone on its own ([step 6](step-6-generate-r-code.qmd)).
+- **Files are uploaded first, then referred to.** The IMF API gateway accepts requests of at most 100 KB, which is too small for some charts' picture and data together. So each file is uploaded separately, and the request refers to them by a short ID ([step 6](step-6-generate-r-code.qmd#how-sent)).
+- **Costs are visible.** The cost of each call to the model is reported per chart and in total ([step 6](step-6-generate-r-code.qmd)).
+- **Short drive letters.** The folders are mapped to `K:` and `L:`, so paths, including those in the generated R code, are the same on every machine ([step 1](step-1-map-drives.qmd)).
+
+## The steps at a glance
+
+| Step | What it does | What it produces |
+|---|---|---|
+| [1](step-1-map-drives.qmd) | Give the project and chart folders short drive letters | `K:` and `L:` |
+| [2](step-2-export-pictures.qmd) | Save the published chart pictures from the File Locator | `excel_and_png/<stem>.png` |
+| [3](step-3-chart-list.qmd) | Copy the list of charts from the File Locator | `chart-list.xlsx` |
+| [4](step-4-chart-data.qmd) | Read each chart's data from its source workbook | `excel_and_png/<stem>.xlsx` |
+| [5](step-5-stems.qmd) | Write the list of charts to convert | `stems.txt` |
+| [6](step-6-generate-r-code.qmd) | Ask the AI model for R code, one chart at a time | `r_code/<stem>.R` |
+| [7](step-7-runall.qmd) | Write an R script that runs all charts | `r_code/runall.R`, then `r_code/figures/<stem>.png` |
+
+Only step 6 uses the AI model. Steps 1–5 and 7 are ordinary scripts that give the same result every time.

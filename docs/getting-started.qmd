@@ -1,0 +1,204 @@
+---
+title: "Getting and running the code"
+---
+
+## Getting the code {#getting-the-code}
+
+The whole project is in one GitHub repository:
+
+**<https://github.com/BasBBakkerIMF/OpenAI-API-convert-charts>**
+
+You can browse the files on that page. To work with them, clone the repository to your machine:
+
+```powershell
+git clone https://github.com/BasBBakkerIMF/OpenAI-API-convert-charts.git
+cd OpenAI-API-convert-charts
+```
+
+If you don't use git, choose **Code → Download ZIP** on the GitHub page and unzip it.
+
+## What is in the repository {#directory-structure}
+
+```text
+OpenAI-API-convert-charts/
+│
+│   ── The pipeline: scripts you run, in this order ──
+├── 1_map_drives.py                              Step 1: map K: and L:
+├── 2_export_pictures_from_file_locator.py       Step 2: save the published chart pictures
+├── 3_create_chart_list.py                       Step 3: copy the chart list from the File Locator
+├── 4_read_all_chart_data_and_put_in_excel.py    Step 4: extract each chart's data
+├── 5_create_stems_file.py                       Step 5: write the list of charts to convert
+├── 6_generate_r_code_for_charts.py              Step 6: ask the AI model for R code (contains the prompt)
+├── 7_create_runall.py                           Step 7: write runall.R
+│
+│   ── Used by the scripts; you don't run these yourself ──
+├── helper_for_4_read_data_from_excel_chart_and_export.py   Reads a chart's data (step 4)
+├── helper_for_6_imf_openai_helper.py            Connects to the IMF API gateway (step 6)
+├── helper_for_6_home_openai.py                  Connects directly to OpenAI (step 6, alternative)
+├── example.txt                                  House-style example R code sent to the model
+│
+│   ── Produced by the pipeline (October 2026 results) ──
+├── chart-list.xlsx                              Step 3: where each chart lives
+├── stems.txt                                    Step 5: the charts to convert
+├── excel_and_png/                               Steps 2 and 4: one pair per chart
+│   ├── fig-2-3.png                                the published picture
+│   ├── fig-2-3.xlsx                               the chart's data
+│   └── ...
+├── r_code/                                      Steps 6 and 7
+│   ├── fig-2-3.R                                  generated R code for one chart
+│   ├── ...
+│   ├── runall.R                                   runs all chart scripts
+│   ├── r_code.Rproj                               RStudio project for running the charts
+│   └── figures/
+│       ├── fig-2-3.png                            the chart as drawn by R
+│       └── ...
+│
+│   ── Set-up ──
+├── install.ps1                                  Creates the Python environment
+├── requirements.txt                             Python packages needed
+├── generate_requirements.py                     Rebuilds requirements.txt from the scripts
+├── .gitignore                                   Files git should ignore (including .env)
+│
+│   ── Documentation ──
+├── docs/                                        This book (Quarto source)
+├── README.md
+├── CLAUDE.md                                    Notes for the Claude Code AI assistant
+├── installation-instructions.docx               Certificate set-up on IMF machines
+│
+└── archive/                                     Earlier versions, kept for reference; not used
+```
+
+Three things are worth knowing:
+
+- **The "Produced by the pipeline" files are overwritten when you run the pipeline** with `K:` pointing at this folder. See [If you run the pipeline yourself](#run-yourself).
+- **The stem links everything.** For any chart, `excel_and_png/<stem>.png`, `excel_and_png/<stem>.xlsx`, `r_code/<stem>.R` and `r_code/figures/<stem>.png` belong together.
+- **Not every chart is complete.** A chart with a picture but no data file, or with R code but no figure, did not make it through every step. If generation failed, step 6 leaves `r_code/<stem>_error.txt` in place of `<stem>.R`.
+
+What you do **not** get is the `.env` file with credentials. It is deliberately left out of the repository, so you need to create your own (see [Set-up](#set-up)).
+
+## The repository includes the results
+
+Besides the code, the repository contains the **inputs and outputs of the October 2026 run**:
+
+- `excel_and_png/`: the published chart image (`<stem>.png`) and extracted data (`<stem>.xlsx`) for every chart;
+- `r_code/`: the generated R script for every chart (`<stem>.R`), `runall.R`, and the figures they produce in `r_code/figures/`;
+- `chart-list.xlsx` and `stems.txt`: the working lists from steps 3 and 5.
+
+**If you only want the R charts, you don't need Python or the AI model at all.** The generated R scripts read their data from `K:/excel_and_png/` and save to `K:/r_code/figures/`. To run them:
+
+1. Map `K:` to the cloned folder (see [step 1](step-1-map-drives.qmd)), or simply run in a Windows command prompt:
+
+   ```text
+   subst K: C:\path\to\OpenAI-API-convert-charts
+   ```
+
+2. In R, run one chart with `source("K:/r_code/fig-2-3.R")`, or all of them with `source("K:/r_code/runall.R")`.
+
+## If you run the pipeline yourself, use different directories {#run-yourself}
+
+Every step writes to fixed locations under `K:`. If `K:` points at the cloned repository, running the pipeline **overwrites the files that came with it**: the extracted data, the generated R code and the figures. You then lose the reference results to compare against, and git shows every file as changed.
+
+So write your own run to separate directories. The easiest way is to keep the repository and the working files apart:
+
+1. Create an empty working folder, e.g. `C:\reo-charts-work`.
+2. Copy `example.txt` from the repository into it. Step 6 reads it from `K:`.
+3. In `1_map_drives.py`, point `K:` at the working folder instead of the repository, and run it.
+4. Run the Python scripts from the repository folder as usual. That is also where your `.env` file goes.
+
+All outputs (`chart-list.xlsx`, `stems.txt`, `excel_and_png/`, `r_code/`) are then created in the working folder. The repository's copies stay untouched.
+
+If you'd rather keep `K:` as it is, change the output paths in the scripts instead:
+
+| Script | Settings that point to `K:` |
+|---|---|
+| `2_export_pictures_from_file_locator.py` | `out_dir` |
+| `3_create_chart_list.py` | `output_file` |
+| `4_read_all_chart_data_and_put_in_excel.py` | `chart_list_file`, `output_directory` |
+| `5_create_stems_file.py` | `chart_list_file`, `stems_file` |
+| `6_generate_r_code_for_charts.py` | `example_file`, `stems_file`, `chart_dir`, `output_dir` |
+| `7_create_runall.py` | `chart_list_file`, `output_directory`, and the `K:/r_code/` path written into `runall.R` |
+
+## Set-up {#set-up}
+
+To run the pipeline you need:
+
+- **Python**, with the project's packages. In PowerShell, in the repository folder, run `.\install.ps1`. This creates a [virtual environment](appendix-glossary.qmd) in `.venv` and installs everything in `requirements.txt`. Activate it in each new PowerShell window with `.\.venv\Scripts\Activate.ps1`.
+- **Access to the AI model**, through a `.env` file in the repository folder. See [Creating the `.env` file](#env-file) below.
+- **Access to the REO chart folder** on the shared drive, which step 1 maps to `L:`.
+- **R** with `readxl`, `ggplot2`, `dplyr`, `tidyr` and `patchwork`, to run the generated scripts.
+
+On IMF machines, Python must trust the IMF's own security certificate before it can reach the model. The scripts handle this with the `truststore` package. If you still get certificate errors, see `installation-instructions.docx` in the repository.
+
+## Creating the `.env` file {#env-file}
+
+Step 6 needs credentials to reach the AI model. These are kept in a small text file called `.env` in the repository folder, not in the scripts. That way they are never put on GitHub: the repository's `.gitignore` excludes `.env`, so git ignores the file.
+
+### What it looks like
+
+The file has one setting per line, in the form `NAME=value`, with no spaces around the `=` and no quotes.
+
+**For the IMF API gateway** (the default), it contains four settings:
+
+```text
+API_KEY=your-api-key
+CLIENT_ID=your-client-id
+TENANT_ID=your-tenant-id
+API_URL=https://the-gateway-address
+```
+
+Replace each value on the right with your own. You receive these values when you are given access to the IMF API gateway. All four are required.
+
+**For direct OpenAI access** (e.g. working from home with a personal OpenAI account), it contains one setting:
+
+```text
+OPENAI_API_KEY=sk-...
+```
+
+To use it, also change the import at the top of `6_generate_r_code_for_charts.py`:
+
+```python
+# from helper_for_6_imf_openai_helper import get_client
+from helper_for_6_home_openai import get_client
+```
+
+A single `.env` file can hold both sets of settings. Each helper reads only the ones it needs.
+
+### How to create it
+
+The file name is exactly `.env`: nothing before the dot, and no `.txt` at the end. Windows Notepad adds `.txt` unless you prevent it, so the easiest way is from PowerShell, in the repository folder:
+
+```powershell
+notepad .env
+```
+
+Notepad asks whether to create the file. Choose **Yes**, paste the lines above with your own values, and save.
+
+To check that the name is right:
+
+```powershell
+Get-ChildItem -Force .env
+```
+
+This should list a file called `.env`. If it says the file cannot be found, the file was probably saved as `.env.txt`. Rename it with `Rename-Item .env.txt .env`.
+
+### Where it must be
+
+Put `.env` in the **repository folder**, next to `6_generate_r_code_for_charts.py`, and **run the scripts from that folder**. The IMF helper looks for `.env` in the folder you run Python from.
+
+### If something is wrong
+
+| Message | Cause |
+|---|---|
+| `Missing required config key: API_KEY` (or `CLIENT_ID`, …) | `.env` was not found, or one of the four lines is missing or misspelt |
+| `OPENAI_API_KEY was not found. Add it to the .env file.` | Using the direct-OpenAI helper without `OPENAI_API_KEY` in `.env` |
+| A browser window opens asking you to sign in | Normal on the first run with the IMF gateway. After you sign in, it is remembered |
+
+## For a new REO edition
+
+The file names and the edition are written into the scripts. For a new edition, update:
+
+- the `L:` target in step 1 (the new chart folder);
+- the File Locator file name and sheet name (e.g. `"October 2026"`) in steps 2 and 3;
+- the figure column name (e.g. `"October 2026 REO Figure"`) in steps 3 and 4.
+
+Then run steps 1–7 in order. Each step's page explains what to check.

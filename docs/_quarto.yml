@@ -1,0 +1,35 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Converting REO Excel charts to R"
+  author: "Bas Bakker"
+  repo-url: https://github.com/BasBBakkerIMF/OpenAI-API-convert-charts
+  repo-subdir: docs
+  repo-actions: [source]
+  search: true
+  chapters:
+    - index.qmd
+    - worked-example.qmd
+    - prompt.qmd
+    - getting-started.qmd
+    - part: steps.qmd
+      chapters:
+        - step-1-map-drives.qmd
+        - step-2-export-pictures.qmd
+        - step-3-chart-list.qmd
+        - step-4-chart-data.qmd
+        - step-5-stems.qmd
+        - step-6-generate-r-code.qmd
+        - step-7-runall.qmd
+  appendices:
+    - appendix-full-prompt.qmd
+    - appendix-glossary.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    number-sections: false

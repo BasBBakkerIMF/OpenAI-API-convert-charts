@@ -1,0 +1,62 @@
+---
+title: "Glossary"
+---
+
+Technical terms used in this book, in plain language.
+
+**AI model** (or *large language model*, *LLM*)
+: A program, here one of OpenAI's GPT models, that reads text and images and writes text in reply. In this project it reads a chart picture, the chart's data and the instructions, and writes R code.
+
+**API**
+: The way one program uses a service over the internet. Step 6 sends the chart to the OpenAI model through its API and receives the R code back. Each call is charged by the number of tokens.
+
+**API gateway (IMF)**
+: The IMF's own entry point to the OpenAI models. Requests go through it instead of directly to OpenAI, and you sign in with your IMF account.
+
+**Chart definition**
+: The part of an Excel file that describes a chart: its type, its series, and for each series the exact cells it plots (for example `Data!$B$2:$B$40`). Step 4 reads this to find the data.
+
+**Deterministic**
+: Gives the same result every time it is run on the same input. All Python steps are deterministic. The AI model is not.
+
+**`.env` file**
+: A small text file holding passwords and keys (for the API) on your own machine. It is never put on GitHub. See [Creating the `.env` file](getting-started.qmd#env-file).
+
+**ggplot2, readxl, dplyr, tidyr, patchwork**
+: R packages. `readxl` reads Excel files. `dplyr` and `tidyr` reshape data. `ggplot2` draws charts. `patchwork` puts several charts side by side.
+
+**git, GitHub, repository, clone**
+: *git* keeps track of versions of a set of files. A *repository* is such a set of files with its history. *GitHub* is a website that hosts repositories. To *clone* is to copy a repository to your own machine.
+
+**Hard-coded**
+: Written directly into a script, as opposed to read from a settings file. The file paths and REO edition are hard-coded, so they must be edited in the scripts for a new edition.
+
+**Observed type**
+: Step 6's description of what a column actually contains: *numeric*, *text*, *text containing numeric values* (numbers stored as text), *mixed types*, and so on. It tells the model where conversion is needed.
+
+**PNG**
+: A common image file format. The published charts are saved as PNGs.
+
+**Prompt**
+: The written instructions sent to the AI model. See [The prompt, explained](prompt.qmd).
+
+**Python**
+: The programming language the pipeline is written in. You need it only to run the pipeline, not to use the R code it produces.
+
+**Stem**
+: The short name of a chart, such as `fig-2-3` for Figure 2.3. It is used as the file name at every stage, so all files for one chart can be found by name.
+
+**`subst`**
+: A Windows command that gives a folder a drive letter, so that `K:\` means, for example, `C:\Users\…\OpenAI-API-convert-charts`.
+
+**Token**
+: The unit in which AI models measure text: roughly three-quarters of a word. API use is priced per token, and step 6 reports how many were used.
+
+**Verified workbook structure**
+: The description of a chart's data file that Python writes into the prompt: sheet names, exact column names, observed types and the first rows. The model is told it is authoritative.
+
+**Virtual environment** (`.venv`)
+: A private folder of Python packages for this project only, created by `install.ps1`. It keeps the project's packages separate from any other Python installation.
+
+**`.xlsx` file as a zip archive**
+: An Excel file is really a compressed folder of smaller text files (in a format called XML). One describes each sheet, one each chart, and so on. The pipeline opens that folder directly instead of starting Excel.

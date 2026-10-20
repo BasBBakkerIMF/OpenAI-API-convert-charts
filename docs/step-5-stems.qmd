@@ -1,0 +1,38 @@
+---
+title: "Step 5: Write the list of stems"
+subtitle: "`5_create_stems_file.py`"
+---
+
+
+## What it does
+
+The script reads the *Picture name in this file* column of `chart-list.xlsx` and writes the stems to `K:\stems.txt`, one per line:
+
+```text
+fig-1-1
+fig-1-2
+fig-2-1
+...
+```
+
+## Why it is done this way
+
+**It is the work list for step 6.** Step 6 is the only step that costs money and takes noticeable time per chart. A plain text file makes it easy to decide which charts to send to the model.
+
+**A text file is easy to edit.** To redo a few charts, delete the other lines. To skip one, put `#` in front of it. Blank lines and lines starting with `#` are ignored by step 6. Editing a text file is quicker and safer than editing `chart-list.xlsx`, which steps 4 and 7 also rely on.
+
+**It keeps step 6 independent of Excel.** Step 6 needs only the stems, the PNGs and the data files. It does not need to know about the File Locator or the chart list.
+
+## Inputs and outputs
+
+| | |
+|---|---|
+| **Reads** | `K:\chart-list.xlsx` |
+| **Writes** | `K:\stems.txt` |
+
+Empty names and surrounding spaces are removed.
+
+## Things to watch for
+
+- Re-running this step **overwrites** `stems.txt`, so any hand edits are lost.
+- To process just one or two charts, you don't need to edit the file at all. Pass the stems to step 6 on the command line instead (see [Step 6](step-6-generate-r-code.qmd)).

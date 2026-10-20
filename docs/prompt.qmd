@@ -1,0 +1,93 @@
+---
+title: "The prompt, explained"
+---
+
+The **prompt** is the set of written instructions sent to the AI model with each chart. It is the single most important part of step 6, because it is the only way to tell the model what a good answer looks like.
+
+The prompt is about 250 lines long. This page explains what each part asks for and why it is there. The [full text](appendix-full-prompt.qmd) is in the appendix.
+
+## How to read it
+
+The prompt reads like a strict specification. Many rules are written in capitals, and several are repeated. That is deliberate. Most rules were added after the model made a particular mistake, and stating a rule firmly, more than once, tends to make the model follow it more reliably. Nearly every rule below corresponds to a way the generated code went wrong at some point.
+
+## What the model is given
+
+The prompt opens by listing the four inputs and, most importantly, says **which input to trust for what**:
+
+| Input | The model must treat it as authoritative for |
+|---|---|
+| The chart **picture** (PNG) | How the chart looks |
+| The **data workbook** | The numbers |
+| The **verified workbook structure**, written by Python | Sheet names, column names, data types, sample values |
+| The **example R code** (optional) | Coding and formatting style |
+
+**Why:** the inputs can appear to disagree. For example, a legend entry in the picture may be worded differently from the column that holds its data. Without a rule, the model picks one, sometimes the wrong one. With a rule, there is nothing to decide.
+
+## "Critical source rules": never invent names
+
+This section says, in several ways, that the R code may only use sheet and column names that appear in the verified structure. It must not take names from the legend or the title, and must not make up a plausible-sounding one. New variables may be *created* in R after the data is read, but must not be treated as if they came from the file.
+
+**Why:** this was a frequent failure. Asked to read a column of upper bounds for the Andean region, the model would write `Andean_upper`, a sensible name that does not exist in the file. The code looks fine and fails on the first line that uses it. Giving the model the real names, and forbidding any others, removes this failure.
+
+## "Data types and arithmetic": numbers stored as text
+
+The model is told to check the *observed type* that Python reported for each column, and to convert any column reported as "text containing numeric values" with `as.numeric()` before doing arithmetic with it. A short example shows the intended code.
+
+**Why:** in Excel, a cell can show `1.5` while storing the text "1.5". R reads such a column as text, and adding two text columns is an error. The model cannot see storage types in a picture, and often assumed numbers. Python can see them, so it reports them, and the prompt makes the model act on them.
+
+## "Reading data": no guessing at run time
+
+The model must read the workbook with `readxl`, use the verified sheet names, and must not invent cell ranges. It is also told **not** to write code that searches for likely-looking column names when it runs, for example code that looks for any column containing "date".
+
+**Why:** when unsure, the model tended to write "defensive" code that tries several possible names. Such code hides the real problem. It may pick the wrong column without any error, and it is much harder to read. Since Python has already established the structure, there is nothing to search for.
+
+## "Data transformation" and "X axis": keep it simple
+
+The model should use the simplest reshaping that fits the table (usually `pivot_longer()` from wide to long), keep the x-axis column as it is, and choose the right kind of axis: categories for text such as `2022Q1`, a continuous axis for real numbers, a date axis for dates.
+
+**Why:** the model sometimes built an artificial numeric index for the x-axis and then attached labels to it. Or it applied a numeric axis to text labels, which fails. Both produce longer code that breaks more easily. Using the data as it is gives shorter, more robust code.
+
+## "Chart": match the picture
+
+This is the part about appearance. Reproduce the picture as closely as practical: title, subtitle, legend text and order, colours, line types, markers, axes, annotations, captions, panel layout and theme. Use a secondary axis only when the picture shows one, and then with a consistent transformation. Return only R code, with no explanation around it.
+
+**Why:** this is the actual goal of the conversion. The "only R code" rule matters because the reply is saved straight to an `.R` file. Any explanatory text would make the file fail to run.
+
+## "Example R code": style, not substance
+
+If an example file is attached, it is R code showing the preferred house style. The model should follow its fonts, colours, spacing and conventions, but **not** copy its data handling, because the example chart's data has a different structure.
+
+**Why:** it is easier to show a house style than to describe it. But without the warning, the model sometimes copied the example's data-reading code, which does not fit the new chart.
+
+## "Final check": a checklist before answering
+
+The prompt ends with a 12-point checklist the model must go through before answering. Are all sheet and column names in the verified list? Has anything been invented? Have numeric-looking text columns been converted? Is every plotted series in the data? Is the code valid?
+
+**Why:** asking the model to check its own answer against explicit criteria catches a share of its mistakes before they reach the R file.
+
+## "Output": a fixed shape for every script
+
+Every script must store the chart in an object called `chart`, print it, and save it with `ggsave()` to a `figures` folder: 600 dpi, 5 × 5 inches, named after the chart's stem.
+
+**Why:** a fixed shape lets all scripts be run together by [`runall.R`](step-7-runall.qmd) and makes the output predictable. Every chart ends up in the same place at the same size.
+
+## Permission to fail
+
+If the model cannot work out the data structure or how the series map to the chart, it must answer exactly `# FAILED`.
+
+**Why:** without this, the model always produces *something*, even when it is guessing. A clear failure costs one look at an error file. A plausible but wrong chart can easily go unnoticed. Step 6 recognises `# FAILED` and records it as an error.
+
+## What is added for each chart
+
+The text above is the same for every chart. For each chart, step 6 adds:
+
+- the **verified workbook structure** for that chart's data file (see the [worked example](worked-example.qmd#verified-structure) for what this looks like);
+- a short block that repeats the most important rules once more: use only the listed names, convert numeric-looking text, invent nothing;
+- the names of the attached files, the chart's stem, and the folder where output goes.
+
+## Changing the prompt
+
+The prompt is a plain text string near the top of `6_generate_r_code_for_charts.py` and can be edited like any text. Two cautions:
+
+- **Removing a rule is likely to bring its failure back.** Before shortening, check which mistake the rule was preventing.
+- **Test a change on a few charts first.** Run step 6 for three or four different stems (`python 6_generate_r_code_for_charts.py fig-2-3 fig-9-2 …`) and compare the results with the originals before re-running everything.

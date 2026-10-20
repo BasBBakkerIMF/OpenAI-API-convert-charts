@@ -1,0 +1,41 @@
+---
+title: "Step 2: Export the published chart pictures"
+subtitle: "`2_export_pictures_from_file_locator.py`"
+---
+
+
+## What it does
+
+The REO File Locator workbook (`L:\WHD REO File Locator (October 2026).xlsx`) has a sheet for the current edition that contains a picture of every published chart. This script saves each of those pictures as a PNG in `K:\excel_and_png`.
+
+Each file is named after the picture's name in Excel, for example `fig-2-3.png`. That is the name shown in Excel's *Selection Pane*.
+
+## Why it is done this way
+
+**The picture defines what the R chart must look like.** In step 6 the model gets the chart's data and this picture. The data says nothing about colours, line styles, legend order or annotations. The picture shows all of them, exactly as published.
+
+**The File Locator already has the pictures.** The REO team keeps a picture of every chart in the File Locator anyway. Taking them from there means there is nothing extra to maintain, and the picture is the version that was actually published.
+
+**The workbook is read as a file, not through Excel.** An `.xlsx` file is really a compressed folder of small text files: one describes each sheet, one lists the pictures on a sheet, and the images themselves are stored alongside. The script follows these links (sheet → pictures → image files) without opening Excel. As in [step 4](step-4-chart-data.qmd), this needs no Excel, runs unattended and gives the same result every time.
+
+**The picture name becomes the stem.** The name in Excel is the one identifier that ties a picture to a row in the File Locator table (the *Picture name in this file* column). Using it as the file name is what makes `fig-2-3.png` match `fig-2-3.xlsx` and `fig-2-3.R` later on.
+
+**Transparency is flattened onto white.** Pictures with a transparent background are composited onto white before saving. A transparent background can be shown as black or as a checkerboard, depending on the viewer. A white background is what the chart looks like on the page.
+
+## Inputs and outputs
+
+| | |
+|---|---|
+| **Reads** | the File Locator workbook, sheet `"October 2026"` |
+| **Writes** | `K:\excel_and_png\<picture name>.png`, one per picture |
+
+## What to change
+
+For a new REO, update the File Locator file name and the sheet name in the `__main__` block.
+
+## Things to watch for
+
+- **Unnamed pictures** keep Excel's default name, such as `Picture 6.png`. They will not match any stem. Rename the picture in Excel's Selection Pane so it matches the *Picture name in this file* column.
+- **Duplicate names** get a suffix such as `fig-2-3 (2).png`. Usually this means a picture was pasted twice.
+- **Pictures in formats the script cannot convert** (e.g. the Windows EMF/WMF formats) are saved in their original format with a message. Step 6 needs a PNG, so convert them by hand or re-paste the chart as a PNG.
+- The script exports **every** picture on the sheet, including ones that are not in the chart list. Extra PNGs do no harm.
