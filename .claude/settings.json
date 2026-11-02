@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(/c/OpenAI-API-convert-charts/.venv/Scripts/python.exe -)",
+      "Bash(.venv/Scripts/python.exe -m pip install -q matplotlib)",
+      "Bash(awk '{print $1, $2}')",
+      "Bash(grep -n -A1 \"legend.position\\\\|legend.direction\\\\|ncol\\\\|nrow\\\\|axis.ticks.length\\\\|angle\\\\|caption = \\\\|size = [0-9.]*,$\" fig-2-4.R fig-3-1.R fig-3-2.R)",
+      "Bash(grep -v \"^--$\")",
+      "Bash(which Rscript R 2>&1; ls \"/c/Program Files/R\" 2>&1 | head; cat /c/OpenAI-API-convert-charts/r_code/r_code.Rproj)",
+      "Read(//c/Program Files/R/**)",
+      "Bash('/c/Program Files/R/R-4.5.2/bin/Rscript.exe' -e 'for \\(p in c\\(\"readxl\",\"ggplot2\",\"dplyr\",\"tidyr\",\"patchwork\",\"ggrepel\"\\)\\) cat\\(p, requireNamespace\\(p, quietly=TRUE\\), as.character\\(tryCatch\\(packageVersion\\(p\\), error=function\\(e\\) NA\\)\\), \"\\\\n\"\\)')"
+    ]
+  }
+}
