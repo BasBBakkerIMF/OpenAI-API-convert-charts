@@ -1,0 +1,202 @@
+---
+title: "Figure 4: LA5: Drivers of Change in Growth, 2026"
+---
+
+![Python: `python/fig-4-0.py`](../images/python/fig-4-0.png)
+
+A waterfall chart. It decomposes the change in LA5 growth between 2025 and
+2026 into contributions from terms of trade, financial conditions,
+uncertainty and a residual. Each contribution is a bar that starts where the
+previous one ended: positive contributions step up, negative ones step down.
+Together they add up to the total change in growth, shown as the last bar,
+which stands on zero.
+
+A waterfall is a good way to show a decomposition when the parts have
+different signs. A stacked bar would hide that some parts offset others.
+
+**New in this chart:**
+
+- floating bars;
+- a colour per bar;
+- labels with line breaks under the bars.
+
+## The data
+
+Sheet `data`, 5 rows:
+
+| category | Lower band | Upper band |
+|---|---|---|
+| Terms of trade | 0.000 | 0.187 |
+| Financial conditions | 0.187 | 0.443 |
+| Uncertainty | 0.328 | 0.302 |
+| Residual | 0.079 | 0.249 |
+| Change in growth, 2026 vs. 2025 | 0.000 | 0.079 |
+
+Excel has no waterfall chart type in older versions. The usual workaround is
+a stacked column chart:
+
+- **An invisible series** (`Lower band`) lifts each bar to the bottom of
+  where it should float.
+- **A visible series** (`Upper band`) is the height of the bar itself.
+
+The bars are:
+
+- **Terms of trade**: from 0 to 0.187.
+- **Financial conditions**: from 0.187 up to 0.630.
+- **Uncertainty**: a negative contribution, so its bar runs *down* from 0.630
+  to 0.328. It is drawn as a bar from 0.328 with height 0.302.
+- **Residual**: from 0.079 to 0.328.
+- **The total change**: from 0 to 0.079.
+
+## The script
+
+```python
+bar_colours = {
+    "Terms of trade": "#78C51C",
+    "Financial conditions": "#78C51C",
+    "Uncertainty": "#E1251B",
+    "Residual": "#B6B7B8",
+    "Change in growth, 2026 vs. 2025": "#5B2A73",
+}
+labels = {
+    "Terms of trade": "Terms of\ntrade",
+    ...
+    "Change in growth, 2026 vs. 2025": "Change in\ngrowth, 2026\nvs. 2025",
+}
+```
+
+Two dictionaries, both keyed by the category name:
+
+- **`bar_colours`** gives each bar its colour. Positive contributions are
+  green, the negative one is red, the residual grey and the total purple.
+- **`labels`** gives the text under each bar, with line breaks where the
+  published chart has them.
+
+```python
+x = np.arange(len(data))
+ax.bar(x, data["Upper band"], bottom=data["Lower band"], width=1.0,
+       color=[bar_colours[c] for c in data["category"]])
+```
+
+One call draws the whole waterfall. `bottom=` lifts each bar by its `Lower
+band`, which is exactly what the invisible Excel series did. There is no need
+to draw the invisible series at all.
+
+- **Bar width.** `width=1.0` makes the bars touch, as in the published chart.
+- **Colours.** `color=[...]` gives one colour per bar.
+
+```python
+ax.set_xticks(x, [labels[c] for c in data["category"]])
+ax.set_xlim(-0.5, len(data) - 0.5)
+ax.tick_params(axis="x", length=3, pad=5, labelsize=9)
+
+set_y_scale(ax, 0, 0.8, 0.2)
+ax.yaxis.set_major_formatter("{x:.1f}")
+```
+
+The labels are looked up in the `labels` dictionary in the order of the
+data. `[labels[c] for c in data["category"]]` is a list comprehension: for
+each category name `c`, in the order of the rows, it takes the label with
+line breaks. The same pattern picks the colours above. Looking up by name,
+rather than relying on the order of the dictionary, means the labels and
+colours stay with the right bars even if the rows come in a different order.
+
+- **Tick marks.** `length=3` keeps short tick marks under the bars, between
+  the labels and the axis, as in the published chart.
+- **The x-limits** run half a bar beyond the first and last bars, so with
+  `width=1.0` the outer bars touch the edges of the plot.
+- **The y-axis** runs from 0 to 0.8 in steps of 0.2. `"{x:.1f}"` writes the
+  labels with one decimal: 0.0, 0.2, ..., 0.8. See [Number
+  formats](../techniques.qmd#sec-number-formats).
+
+There is no legend: the labels under the bars name each contribution, and
+the colours only show whether it is positive or negative.
+
+## Changing the chart
+
+- **From contributions to a waterfall.** If you have the contributions
+  themselves (for example 0.187, 0.443, -0.302, -0.249) rather than Excel's
+  helper series, compute the floating bars with a running total:
+
+  ```python
+  contributions = np.array([0.187, 0.443, -0.302, -0.249])
+  ends = np.cumsum(contributions)
+  starts = ends - contributions
+  bottoms = np.minimum(starts, ends)
+  heights = np.abs(contributions)
+  ```
+
+  Then add the total as a last bar from 0 to `ends[-1]`.
+- **Colours from the sign.** Instead of typing a colour per bar, choose
+  green or red automatically (the residual and the total would then need their own colours):
+  `["#78C51C" if c > 0 else "#E1251B" for c in contributions]`.
+- **Value labels.** Keep what `ax.bar()` returns and call
+  `ax.bar_label(bars, labels=[f"{c:+.2f}" for c in contributions])`; the
+  `+` in the format shows the sign.
+
+## The complete script
+
+The full `python/fig-4-0.py`, as it runs:
+
+```` {.python filename="python/fig-4-0.py"}
+"""Figure 4: LA5: Drivers of Change in Growth, 2026 (waterfall chart)."""
+import numpy as np
+
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-4-0"
+
+data = read_chart_data(STEM)
+
+# In Excel the waterfall is a stacked column chart: an invisible "Lower band"
+# lifts each visible "Upper band" bar to the right height.
+bar_colours = {
+    "Terms of trade": "#78C51C",
+    "Financial conditions": "#78C51C",
+    "Uncertainty": "#E1251B",
+    "Residual": "#B6B7B8",
+    "Change in growth, 2026 vs. 2025": "#5B2A73",
+}
+labels = {
+    "Terms of trade": "Terms of\ntrade",
+    "Financial conditions": "Financial\nconditions",
+    "Uncertainty": "Uncertainty",
+    "Residual": "Residual",
+    "Change in growth, 2026 vs. 2025": "Change in\ngrowth, 2026\nvs. 2025",
+}
+
+fig, ax = new_chart(
+    title="LA5: Drivers of Change in Growth, 2026",
+    subtitle="(Percent)",
+    caption=(
+        "Sources: Ahir, H, N Bloom, and D Furceri (2022), “World Uncertainty\n"
+        "Index”, NBER Working Paper; Haver Analytics; IMF, World Economic\n"
+        "Outlook database; and IMF staff calculations.\n"
+        "Note: Aggregate is purchasing-power-parity GDP-weighted average.\n"
+        "Estimates are obtained from a local projection regression of growth on\n"
+        "terms of trade, financial conditions, and uncertainty, controlling for US and\n"
+        "China growth and inflation, and country- and year- fixed effects. For\n"
+        "methodology and variables included in the financial conditions index, refer\n"
+        "to the online annex of the October 2018 Global Financial Stability Report.\n"
+        "LA5 = Latin America 5 (Brazil, Chile, Colombia, Mexico, Peru)."
+    ),
+    caption_size=8.2,
+    left=0.4,
+    right=0.15,
+    bottom_gap=0.55,
+)
+
+x = np.arange(len(data))
+ax.bar(x, data["Upper band"], bottom=data["Lower band"], width=1.0,
+       color=[bar_colours[c] for c in data["category"]])
+
+ax.set_xticks(x, [labels[c] for c in data["category"]])
+ax.set_xlim(-0.5, len(data) - 0.5)
+ax.tick_params(axis="x", length=3, pad=5, labelsize=9)
+
+set_y_scale(ax, 0, 0.8, 0.2)
+ax.yaxis.set_major_formatter("{x:.1f}")
+ax.tick_params(axis="y", length=3)
+
+save_chart(fig, STEM)
+````

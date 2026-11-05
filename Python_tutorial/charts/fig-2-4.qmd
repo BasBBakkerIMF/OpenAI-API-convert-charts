@@ -1,0 +1,189 @@
+---
+title: "Figure 2.4: US Holdings of Foreign Bonds"
+---
+
+![Python: `python/fig-2-4.py`](../images/python/fig-2-4.png)
+
+Three quarterly lines: the share of US holdings of foreign bonds that goes
+to each of three emerging-market regions (Latin America 7, emerging Asia and
+emerging Europe). The chart shows that LA7 receives a much larger share than
+the other two regions.
+
+**New in this chart:** a label for every second quarter only, written
+vertically.
+
+## The data
+
+Sheet `data`, 18 rows (2022Q1 onward):
+
+| category | LA7 | EM Asia | EM Europe |
+|---|---|---|---|
+| 2022Q1 | 5.26 | 2.02 | 0.58 |
+
+The `category` column contains text such as `2022Q1`. matplotlib cannot
+place text on a numeric axis, so the script plots the quarters at positions
+0, 1, 2, ... and then writes the quarter names under those positions. This
+is how Excel's category axis works too.
+
+## The script
+
+The script follows the pattern of [Figure 1.1](fig-1-1.qmd), which explains
+each step in more detail. Here the focus is on what differs.
+
+### Larger text in the frame
+
+```python
+fig, ax = new_chart(
+    title="US Holdings of Foreign Bonds",
+    subtitle="(Percent share of total world)",
+    caption=(...),
+    title_size=13.5,
+    subtitle_size=11.5,
+    left=0.3,
+    right=0.2,
+    bottom_gap=0.62,
+)
+```
+
+The published chart has a slightly larger title and subtitle than most REO
+charts, so the defaults of `new_chart()` (13 and 11 points) are raised by
+half a point. Everything else in the layout adjusts to the new sizes.
+
+`bottom_gap=0.62` is about twice the usual value. The quarter labels are
+written vertically and are longer than year labels, so they need more room
+between the x-axis and the caption.
+
+### The lines at category positions
+
+```python
+x = np.arange(len(data))
+for series, colour in series_colours.items():
+    ax.plot(x, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round", solid_joinstyle="round", label=series)
+```
+
+`np.arange(len(data))` makes the positions 0, 1, ..., 17, one for each row.
+See [Categories as positions](../techniques.qmd#sec-categories).
+
+The loop draws one line per region, with the colour from `series_colours`.
+`solid_capstyle="round"` rounds the line ends and `solid_joinstyle="round"`
+rounds the corners where a line changes direction. Excel draws both round;
+matplotlib's defaults are a square end and a sharp corner, which look
+spiky on quarterly data with sudden changes. See [Line
+styles](../techniques.qmd#sec-line-styles).
+
+### Every second quarter
+
+```python
+# Label every second quarter.
+ax.set_xticks(x[::2], data["category"].iloc[::2], rotation=90)
+ax.set_xlim(0, len(data) - 1)
+ax.tick_params(axis="x", direction="in", length=2.3, pad=5, labelsize=9.5)
+```
+
+`ax.set_xticks(positions, labels)` sets where the ticks go and what they
+say. Both arguments are thinned with `[::2]`, Python's way of taking every
+second element, starting with the first. For the positions this gives 0, 2,
+4, ...; for the labels `.iloc[::2]` gives the matching rows, 2022Q1,
+2022Q3, 2023Q1, .... It is important to thin both in the same way, or the
+labels would end up under the wrong quarters.
+
+With 18 quarters, labelling all of them would crowd the axis. This is what
+Excel does with *Interval between labels = 2*.
+
+- `rotation=90` writes the labels vertically.
+- `ax.set_xlim(0, len(data) - 1)` makes the lines start at the left edge and
+  end at the right edge, with no margin, as in the published chart.
+- `direction="in"` points the tick marks into the plot instead of out of it.
+- `labelsize=9.5` makes the labels half a point larger than the house
+  default, to match the published version.
+
+### The y-axis and legend
+
+```python
+ax.set_ylim(0, 7)
+ax.yaxis.set_major_locator(MultipleLocator(1))
+ax.tick_params(axis="y", direction="in", length=2.3, pad=6, labelsize=9.5)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.06, 1.0), fontsize=9.5,
+          handlelength=3.0, labelspacing=0.15)
+```
+
+The y-axis runs from 0 to 7. `MultipleLocator(1)` is matplotlib's
+equivalent of Excel's *major unit*: a tick at every multiple of 1. It does
+the same job as the helper `set_y_scale(ax, 0, 7, 1)` used in most other
+scripts. See [Number formats and tick
+spacing](../techniques.qmd#sec-number-formats).
+
+The y-ticks also point inwards, and the labels use 9.5 points. The legend
+sits in the top left, where all three lines are low enough to leave room.
+`handlelength=3.0` lengthens the line samples and `labelspacing=0.15` keeps
+the three entries close together. See [Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **Label every quarter, or every fourth.** Change both `[::2]` to `[::1]`
+  or `[::4]`. With `[::4]` only the first quarters (Q1) are labelled.
+- **Start with the last quarter.** To make sure the latest quarter has a
+  label, thin from the end: `x[::-2][::-1]` and
+  `data["category"].iloc[::-2][::-1]`.
+- **Horizontal labels.** Remove `rotation=90` and reduce `bottom_gap`, but
+  only label every fourth quarter, or the labels will overlap.
+
+## The complete script
+
+The full `python/fig-2-4.py`, as it runs:
+
+```` {.python filename="python/fig-2-4.py"}
+"""Figure 2.4: US Holdings of Foreign Bonds."""
+import numpy as np
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-2-4"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "LA7": "#5B267A",
+    "EM Asia": "#00A3AD",
+    "EM Europe": "#D05A0D",
+}
+
+fig, ax = new_chart(
+    title="US Holdings of Foreign Bonds",
+    subtitle="(Percent share of total world)",
+    caption=(
+        "Sources: Haver Analytics; and IMF staff calculations.\n"
+        "Note: LA7 excludes Paraguay due to data limitations. EM = emerging\n"
+        "markets; EM Asia = India, Indonesia, Malaysia, Philippines, Thailand; EM\n"
+        "Europe = Hungary, Poland, Romania, Serbia; LA7 = Latin America 7\n"
+        "(Brazil, Chile, Colombia, Mexico, Paraguay, Peru)."
+    ),
+    title_size=13.5,
+    subtitle_size=11.5,
+    left=0.3,
+    right=0.2,
+    bottom_gap=0.62,
+)
+
+x = np.arange(len(data))
+for series, colour in series_colours.items():
+    ax.plot(x, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round", solid_joinstyle="round", label=series)
+
+# Label every second quarter.
+ax.set_xticks(x[::2], data["category"].iloc[::2], rotation=90)
+ax.set_xlim(0, len(data) - 1)
+ax.tick_params(axis="x", direction="in", length=2.3, pad=5, labelsize=9.5)
+
+ax.set_ylim(0, 7)
+ax.yaxis.set_major_locator(MultipleLocator(1))
+ax.tick_params(axis="y", direction="in", length=2.3, pad=6, labelsize=9.5)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.06, 1.0), fontsize=9.5,
+          handlelength=3.0, labelspacing=0.15)
+
+save_chart(fig, STEM)
+````

@@ -1,0 +1,161 @@
+---
+title: "Introduction"
+---
+
+This book explains, chart by chart, the Python scripts in the
+[`python/`](https://github.com/BasBBakkerIMF/OpenAI-API-convert-charts/tree/main/python)
+folder of the repository. Each script redraws one chart of the IMF Western
+Hemisphere *Regional Economic Outlook* (REO) with
+[matplotlib](https://matplotlib.org), the standard Python charting library,
+from the data that the pipeline extracted from the Excel chart.
+
+It is written for economists who make charts in Excel or R and want to read,
+change or write such scripts in Python. You don't need prior matplotlib
+experience. The Python you need is explained as it comes up.
+
+![A chart drawn by `python/fig-3-1.py`](images/python/fig-3-1.png)
+
+## How the book is organised
+
+1. **[The shared layout: `chart_style.py`](chart-style.qmd)** explains the
+   module that every script imports. It sets the fonts, places the title and
+   the sources note, reads the data and saves the picture. Read it first: it
+   is the reason the chart scripts are short.
+2. **[Recurring techniques](techniques.qmd)** collects the matplotlib
+   building blocks that appear in many charts. Examples are a right-hand
+   scale, stacked bars, shaded bands, legends and labels below the axis. The
+   chart pages link to it rather than explaining the same thing 38 times.
+3. **The charts** has one page per chart, in the order of the REO. Each page
+   shows the published chart next to the Python version. It describes the
+   data and walks through the script.
+
+The first chart page, [Figure 1.1](charts/fig-1-1.qmd), explains every line.
+Later pages concentrate on what is new in that chart.
+
+## Running the scripts
+
+The scripts need the project's virtual environment (see `install.ps1` in the
+repository), which has pandas, numpy, openpyxl and matplotlib. In PowerShell,
+from the `python` folder:
+
+```powershell
+cd python
+..\.venv\Scripts\python.exe fig-3-1.py     # one chart
+..\.venv\Scripts\python.exe run_all.py     # all 38 charts
+```
+
+Each script reads `excel_and_png/<stem>.xlsx` and writes
+`python/figures/<stem>.png`. The **stem** is the chart's name, such as
+`fig-3-1`, and is used for every file that belongs to that chart. The paths
+are relative to the repository, so the scripts work wherever you put it.
+
+::: {.callout-note}
+## The scripts are the reference
+
+Every page ends with the complete script under **The complete script**.
+`add_full_scripts.py` in this folder copies it in from `python/`. After
+changing a script, run it again (`..\.venv\Scripts\python.exe
+add_full_scripts.py`) and re-render the book. The shorter excerpts in the
+walk-throughs are copied by hand, so if they ever differ from the script, the
+script is what runs.
+:::
+
+## What a chart script looks like
+
+Every script has the same six parts, in the same order. Here they are for
+[Figure 3.1](charts/fig-3-1.qmd), a plain line chart, shortened:
+
+```python
+from chart_style import new_chart, read_chart_data, save_chart   # 1. imports
+
+STEM = "fig-3-1"
+data = read_chart_data(STEM)                                     # 2. the data
+
+series_colours = {"USA": "#0067A5", "CAN": "#454545", ...}       # 3. the series
+
+fig, ax = new_chart(title="Terms of Trade",                      # 4. the frame
+                    subtitle="(Index: 2019 = 100)",
+                    caption="Sources: ...")
+
+for series, colour in series_colours.items():                    # 5. the drawing
+    ax.plot(data["category"], data[series], color=colour, label=series)
+ax.set_ylim(90, 125)
+ax.legend(loc="upper left")
+
+save_chart(fig, STEM)                                            # 6. save
+```
+
+1. **Imports.** Load the helpers from `chart_style.py`, and sometimes a few
+   matplotlib tools.
+2. **The data.** Read the chart's workbook into a pandas *DataFrame*, a table
+   with named columns. `data["USA"]` is the column for the United States.
+3. **The series and their colours.** A *dictionary* (`{key: value, ...}`)
+   maps each column to its colour. The order of the dictionary is also the
+   drawing order and the legend order.
+4. **The frame.** `new_chart()` creates the 5 × 5 inch figure with title,
+   subtitle and sources. It returns the figure (`fig`) and the plot area
+   (`ax`, for *axes*), on which everything else is drawn.
+5. **The drawing.** Lines, bars and areas, then the axes (limits, ticks,
+   labels) and the legend. This is the only part that differs much between
+   charts.
+6. **Save** the picture as `python/figures/<stem>.png`.
+
+## The charts at a glance
+
+| Chart | Type | Worth looking at for |
+|---|---|---|
+| [1.1](charts/fig-1-1.qmd) | Lines | The full walk-through; quarters as categories |
+| [1.1.1](charts/fig-1-1-1.qmd) | Grouped bars + line | Bars side by side; right-hand scale by hand |
+| [1.1.2](charts/fig-1-1-2.qmd) | Lines + bands | Confidence bands from Excel's helper series |
+| [1.2](charts/fig-1-2.qmd) | Smoothed lines | `smooth_line()` |
+| [1.2.1](charts/fig-1-2-1.qmd) | Stacked bars + line | Dates; actual and estimated values combined |
+| [1.2.2](charts/fig-1-2-2.qmd) | Line + band | A min–max band |
+| [1.2.3](charts/fig-1-2-3.qmd) | Line + band | Event-study chart; axis line at zero |
+| [1.3.1](charts/fig-1-3-1.qmd) | Two panels, bars + circles | Panels; a hand-made legend |
+| [2.1](charts/fig-2-1.qmd) | Lines | Axis line at zero with tick marks |
+| [2.2](charts/fig-2-2.qmd) | Two panels, daily lines | Panels driven by a list of settings |
+| [2.3](charts/fig-2-3.qmd) | Stacked bars + dots | Legend order in two columns; an arrow |
+| [2.4](charts/fig-2-4.qmd) | Lines | Labelling every second category |
+| [3.1](charts/fig-3-1.qmd) | Lines | Years as numbers; axis line at 100 |
+| [3.2](charts/fig-3-2.qmd) | Daily lines, two scales | Which axis is drawn on top |
+| [3.3](charts/fig-3-3.qmd) | Grouped bars | Negative bars; ticks pointing down |
+| [3.4](charts/fig-3-4.qmd) | Monthly lines, two scales | Right-hand scale with decimals |
+| [4](charts/fig-4-0.qmd) | Waterfall | Floating bars |
+| [5.1](charts/fig-5-1.qmd) | Lines, two scales | Negative scales |
+| [5.2](charts/fig-5-2.qmd) | Lines | Axis line at zero |
+| [6.1](charts/fig-6-1.qmd) | Monthly lines + projections | Dotted line to a projection point |
+| [6.2](charts/fig-6-2.qmd) | Density | A chart without a y-scale |
+| [7.1](charts/fig-7-1.qmd) | Lines, two scales | A dashed series on the right scale |
+| [7.2](charts/fig-7-2.qmd) | Two panels, stacked bars | Panels of different widths; group labels |
+| [8](charts/fig-8-0.qmd) | Lines + bands | Two confidence bands |
+| [9.1](charts/fig-9-1.qmd) | Stacked bars + dots | A table of labels inside the plot |
+| [9.2](charts/fig-9-2.qmd) | Lines | Legend in one row |
+| [10.1](charts/fig-10-1.qmd) | Bars + dashes | Labels below the axis; dashes on the right scale |
+| [10.2](charts/fig-10-2.qmd) | Lines | Dashed and dotted line styles |
+| [11.1](charts/fig-11-1.qmd) | Paths in four quadrants | Arrows; axes crossing at zero |
+| [11.2](charts/fig-11-2.qmd) | Paths in four quadrants | The same, for three countries |
+| [12.1](charts/fig-12-1.qmd) | Bars | A three-row table of labels |
+| [13](charts/fig-13-0.qmd) | Bars, two scales | Bars on the right-hand scale |
+| [14.1](charts/fig-14-1.qmd) | Line + band, two scales | A band and a right-hand scale |
+| [14.2](charts/fig-14-2.qmd) | Two panels, box plots | Box plots by hand; labels that don't overlap |
+| [15.1](charts/fig-15-1.qmd) | Bars | The simplest bar chart |
+| [15.2](charts/fig-15-2.qmd) | Line + band | A min–max band |
+| [16.1](charts/fig-16-1.qmd) | Lines | Two-line subtitle |
+| [16.2](charts/fig-16-2.qmd) | Stacked bars | Stacked bars on a year axis |
+
+If you are new to matplotlib, a good path is 1.1, 3.1, 15.1, 16.2, 1.1.2,
+5.1, 2.2 and then 9.1. That takes you from a single line chart to panels and
+label tables.
+
+## Why Python versions?
+
+The pipeline produces R scripts, generated by a language model. The Python
+scripts were written by converting those R scripts and comparing every
+result with the published chart. They are an alternative for colleagues who
+work in Python, and a second check of the extracted data. Two charts have
+known gaps:
+
+- **Figure 12.1** has no error bars, because the confidence intervals are not
+  in the extracted data.
+- **Some category labels** are typed into the scripts (for example the region
+  names in Figure 9.1), because they are not in the extracted data either.

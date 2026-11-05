@@ -1,0 +1,180 @@
+---
+title: "Figure 1.2.2: Remittances to CA4 Countries"
+---
+
+![Python: `python/fig-1-2-2.py`](../images/python/fig-1-2-2.png)
+
+Monthly growth of total remittances to four Central American countries (El
+Salvador, Guatemala, Honduras and Nicaragua), year over year. The line is
+the total for the four; the shaded area is the range between the country
+with the lowest and the country with the highest growth in each month. A
+wide band means the four countries are having very different experiences.
+
+**New in this chart:** a min–max band. Otherwise it is a short and
+straightforward script, a good example of a band chart. Compare
+[Figure 15.2](fig-15-2.qmd), the same kind of chart with annual data.
+
+## The data
+
+Sheet `data`, 33 rows (monthly):
+
+| category | Min | Min-Max Band | Total remittances |
+|---|---|---|---|
+| 2023-10-01 | 1.74 | 26.70 | 6.85 |
+
+`Min-Max Band` is not the maximum. It is the *width* of the band, stacked on
+top of `Min` in Excel. In the first row, the lowest growth rate is 1.74
+percent and the highest is 1.74 + 26.70 = 28.44 percent.
+
+The `category` column contains dates, one per month, always on the first of
+the month.
+
+## The script
+
+### Dates and the band
+
+```python
+data = read_chart_data(STEM)
+dates = pd.to_datetime(data["category"])
+
+# In Excel the band is a stacked area: "Min" plus the "Min-Max Band" on top.
+band_lower = data["Min"]
+band_upper = data["Min"] + data["Min-Max Band"]
+```
+
+`pd.to_datetime()` makes sure the categories are real dates and not text,
+whatever form they have in the Excel file. With dates on the x-axis,
+matplotlib spaces the months by their actual length and can format the tick
+labels as month names. See [Dates on the x-axis](../techniques.qmd#sec-dates).
+
+The upper edge of the band is the minimum plus the width. Giving the two
+edges their own names, `band_lower` and `band_upper`, makes the drawing code
+below easier to read. See [Shaded bands](../techniques.qmd#sec-bands).
+
+### The frame
+
+`new_chart()` gets `caption_size=7.8`, smaller than usual, because the first
+source line is long and must fit within the chart width. `bottom_gap=0.55`
+leaves room for the month labels, which are written vertically.
+
+### Drawing in layers
+
+```python
+ax.fill_between(dates, band_lower, band_upper, color="#FCE5D6", linewidth=0)
+ax.axhline(0, color="#BFBFBF", linewidth=0.7)
+ax.plot(dates, data["Total remittances"], color="#C55A11", linewidth=2.4,
+        solid_capstyle="round", solid_joinstyle="round")
+```
+
+Order matters: each element is drawn over the previous ones.
+
+1. **The band.** `ax.fill_between(x, lower, upper)` fills the area between
+   the two edges, in a pale orange (`#FCE5D6`). `linewidth=0` removes the
+   outline.
+2. **A light grey line at zero.** The y-axis goes below zero, so a
+   reference line shows where growth turns negative. It is drawn on top of
+   the band, so it stays visible where the band covers zero, but in light
+   grey (`#BFBFBF`), so it does not compete with the data.
+3. **The remittances line**, in a dark orange of the same hue as the band.
+   It is thicker than usual (2.4 points instead of about 1.8), because it is
+   the only line in the chart. The round cap and join styles avoid sharp
+   corners at the monthly turns. See [Line
+   styles](../techniques.qmd#sec-line-styles).
+
+### The x-axis: months
+
+```python
+ax.set_xlim(pd.Timestamp("2023-12-15"), pd.Timestamp("2026-06-15"))
+ax.set_xticks(pd.date_range("2024-01-01", "2026-05-01", freq="2MS"))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))
+ax.tick_params(axis="x", labelrotation=90, direction="in", length=2.8, pad=5)
+```
+
+- **Visible period.** The data start in October 2023, but the chart shows
+  January 2024 to June 2026. Setting the x-limits is enough to hide the
+  earlier months; there is no need to drop rows. With dates on the axis, the
+  limits are dates too, written as `pd.Timestamp(...)`. The limits fall on
+  the 15th, half a month before the first and after the last point shown.
+- **Ticks.** `pd.date_range(start, end, freq="2MS")` makes a list of dates
+  from January 2024 to May 2026. `"MS"` means *month start*, and `"2MS"`
+  every second month start: Jan-24, Mar-24, May-24, and so on.
+- **Labels.** `DateFormatter("%b-%y")` writes each date as a short month
+  name and two-digit year, for example `Jan-24`, as in Excel's `mmm-yy`
+  number format. `%b` is the month abbreviation and `%y` the year without
+  century.
+- **Vertical labels**, with tick marks pointing in.
+
+### The y-axis
+
+```python
+ax.set_ylim(-10, 50)
+ax.yaxis.set_major_locator(MultipleLocator(10))
+ax.tick_params(axis="y", direction="in", length=2.8, pad=5)
+```
+
+From -10 to 50 with a tick every 10. The range is set wide enough for the
+top of the band; growth of the total stays well within it.
+
+The chart has no legend, because the subtitle and caption explain the single
+line and the band.
+
+## Changing the chart
+
+- **Show all the data.** Move the left limit to
+  `pd.Timestamp("2023-09-15")` and start the ticks in October 2023.
+- **Label every month.** Use `freq="MS"`. With 30 months the labels will be
+  crowded; every second or third month (`"3MS"`) is easier to read.
+- **A different date format.** `"%m/%Y"` gives `01/2024`, `"%b %Y"` gives
+  `Jan 2024`.
+
+## The complete script
+
+The full `python/fig-1-2-2.py`, as it runs:
+
+```` {.python filename="python/fig-1-2-2.py"}
+"""Figure 1.2.2: Remittances to CA4 Countries."""
+import matplotlib.dates as mdates
+import pandas as pd
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-1-2-2"
+
+data = read_chart_data(STEM)
+dates = pd.to_datetime(data["category"])
+
+# In Excel the band is a stacked area: "Min" plus the "Min-Max Band" on top.
+band_lower = data["Min"]
+band_upper = data["Min"] + data["Min-Max Band"]
+
+fig, ax = new_chart(
+    title="Remittances to CA4 Countries",
+    subtitle="(Year-over-year percent change)",
+    caption=(
+        "Sources: Haver Analytics; national authorities; and IMF staff calculations.\n"
+        "Note: Nicaragua’s 2025–26H1 data are IMF staff estimates. CA4 =\n"
+        "Central America 4 (El Salvador, Guatemala, Honduras, Nicaragua)."
+    ),
+    caption_size=7.8,
+    left=0.4,
+    right=0.2,
+    bottom_gap=0.55,
+)
+
+ax.fill_between(dates, band_lower, band_upper, color="#FCE5D6", linewidth=0)
+ax.axhline(0, color="#BFBFBF", linewidth=0.7)
+ax.plot(dates, data["Total remittances"], color="#C55A11", linewidth=2.4,
+        solid_capstyle="round", solid_joinstyle="round")
+
+ax.set_xlim(pd.Timestamp("2023-12-15"), pd.Timestamp("2026-06-15"))
+ax.set_xticks(pd.date_range("2024-01-01", "2026-05-01", freq="2MS"))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))
+ax.tick_params(axis="x", labelrotation=90, direction="in", length=2.8, pad=5)
+
+ax.set_ylim(-10, 50)
+ax.yaxis.set_major_locator(MultipleLocator(10))
+ax.tick_params(axis="y", direction="in", length=2.8, pad=5)
+
+save_chart(fig, STEM)
+````

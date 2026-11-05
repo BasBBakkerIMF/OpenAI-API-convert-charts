@@ -1,0 +1,148 @@
+---
+title: "Running all charts: run_all.py"
+---
+
+`python/run_all.py` draws all 38 charts in one go and reports which ones
+failed. It is the Python counterpart of `runall.R` in the R pipeline.
+
+```powershell
+cd python
+..\.venv\Scripts\python.exe run_all.py
+```
+
+The output ends with:
+
+```
+============================
+FILES WITH ERRORS
+============================
+None
+
+38 of 38 charts created.
+```
+
+## The script
+
+```python
+import subprocess
+import sys
+from pathlib import Path
+
+PYTHON_DIR = Path(__file__).resolve().parent
+
+
+def chart_order(path: Path):
+    """Sort fig-2-3 before fig-10-1 (by figure number, not alphabetically)."""
+    return [int(part) for part in path.stem.split("-")[1:]]
+```
+
+Sorted alphabetically, `fig-10-1` would come before `fig-2-3`. `chart_order`
+turns a name into a list of numbers: `fig-10-1` becomes `[10, 1]`, and
+`fig-2-3` becomes `[2, 3]`. Python compares such lists element by element, so
+the charts come out in figure order.
+
+```python
+failed = []
+scripts = sorted(PYTHON_DIR.glob("fig-*.py"), key=chart_order)
+
+for script in scripts:
+    result = subprocess.run(
+        [sys.executable, script.name],
+        cwd=PYTHON_DIR,
+        capture_output=True,
+        text=True,
+    )
+```
+
+Each chart script runs as a separate Python process:
+
+- **`sys.executable`** is the Python that runs `run_all.py`, so the same
+  virtual environment is used.
+- **Separate processes** keep the charts independent. A setting changed by
+  one script, or a script that crashes, cannot affect the next.
+- **`capture_output=True`** collects what the script prints, instead of
+  showing it directly.
+
+```python
+    if result.returncode == 0:
+        print(result.stdout.strip())
+    else:
+        error = result.stderr.strip().splitlines()[-1]
+        print(f"ERROR in {script.name}: {error}")
+        failed.append((script.name, error))
+```
+
+A return code of 0 means success, and the script's own message ("Saved
+...") is passed on. Otherwise, the last line of the error output is
+recorded. That line is the error message itself, for example `KeyError:
+'LA7'` when a column name is wrong.
+
+```python
+print()
+print("=" * 28)
+print("FILES WITH ERRORS")
+print("=" * 28)
+if failed:
+    for name, error in failed:
+        print(f"{name} -- {error}")
+else:
+    print("None")
+print(f"\n{len(scripts) - len(failed)} of {len(scripts)} charts created.")
+```
+
+The summary lists the failed charts with their errors. To investigate one,
+run that script on its own, which shows the full error report:
+
+```powershell
+..\.venv\Scripts\python.exe fig-10-1.py
+```
+
+## The complete script
+
+The full `python/run_all.py`, as it runs:
+
+```` {.python filename="python/run_all.py"}
+"""
+Run every chart script (fig-*.py) in this folder and list any that failed,
+like r_code/runall.R does for the R versions.
+"""
+import subprocess
+import sys
+from pathlib import Path
+
+PYTHON_DIR = Path(__file__).resolve().parent
+
+
+def chart_order(path: Path):
+    """Sort fig-2-3 before fig-10-1 (by figure number, not alphabetically)."""
+    return [int(part) for part in path.stem.split("-")[1:]]
+
+
+failed = []
+scripts = sorted(PYTHON_DIR.glob("fig-*.py"), key=chart_order)
+
+for script in scripts:
+    result = subprocess.run(
+        [sys.executable, script.name],
+        cwd=PYTHON_DIR,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        print(result.stdout.strip())
+    else:
+        error = result.stderr.strip().splitlines()[-1]
+        print(f"ERROR in {script.name}: {error}")
+        failed.append((script.name, error))
+
+print()
+print("=" * 28)
+print("FILES WITH ERRORS")
+print("=" * 28)
+if failed:
+    for name, error in failed:
+        print(f"{name} -- {error}")
+else:
+    print("None")
+print(f"\n{len(scripts) - len(failed)} of {len(scripts)} charts created.")
+````

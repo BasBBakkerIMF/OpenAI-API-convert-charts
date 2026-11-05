@@ -1,0 +1,190 @@
+---
+title: "Figure 3.3: Change in Commodity Terms of Trade"
+---
+
+![Python: `python/fig-3-3.py`](../images/python/fig-3-3.png)
+
+Two bars per country, comparing the change in commodity terms of trade since
+January 2025 at two dates: February 2026 and May 2026. The commodity terms
+of trade measure the prices of the commodities a country exports, net of
+those it imports, weighted by their importance in the economy. Some changes
+are negative, so the bars go both up and down from zero.
+
+**New in this chart:**
+
+- grouped bars with two series;
+- an axis line at zero with ticks pointing *down*.
+
+## The data
+
+Sheet `data`, 11 rows (countries):
+
+| category | February 2026 | May 2026 |
+|---|---|---|
+| CHL | 6.00 | 3.99 |
+
+Each row is a country, written as its three-letter ISO code. Each column is
+one of the two bars in the pair, and the column names are the legend labels.
+
+## The script
+
+### Colours
+
+```python
+series_colours = {"February 2026": "#C9ADD5", "May 2026": "#00689D"}
+```
+
+The earlier date is light purple and the later date dark blue, so the more
+recent value stands out. The order of the dictionary is also the order of
+the bars in each pair: February on the left, May on the right.
+
+### Grouped bars
+
+```python
+x = np.arange(len(data))
+bar_width = 0.38
+for i, (series, colour) in enumerate(series_colours.items()):
+    ax.bar(x + (i - 0.5) * bar_width, data[series], width=bar_width,
+           color=colour, label=series)
+```
+
+Like stacking, grouping bars is not a chart type in matplotlib, as it is in
+Excel. Instead, each series is drawn at slightly shifted positions:
+
+- The countries are at positions 0, 1, ..., 10 (`x`).
+- Each bar is 0.38 wide, so a pair is 0.76 wide and leaves a gap of 0.24
+  between countries.
+- The first series (`i = 0`) is shifted by -0.5 bar widths, to the left of
+  the country's position; the second (`i = 1`) by +0.5, to the right. The
+  pair is then centred on the country's position, which is where the label
+  goes.
+
+`x + (i - 0.5) * bar_width` adds the same shift to every position at once,
+because `x` is a NumPy array.
+
+`enumerate(...)` numbers the items of a sequence. Here it returns the number
+`i` together with the dictionary pair `(series, colour)`, hence the brackets
+in `i, (series, colour)`. See [Grouped bars](../techniques.qmd#sec-grouped),
+which also gives the formula for three or more series.
+
+### The axis line at zero
+
+```python
+# The x-axis is drawn at zero, with short tick marks pointing down; the
+# country labels stay at the bottom of the chart.
+ax.axhline(0, color="black", linewidth=0.7)
+ax.vlines(x, -0.12, 0, color="black", linewidth=0.6)
+```
+
+As in [Figure 5.2](fig-5-2.qmd), the axis line is drawn at zero while the
+labels stay at the bottom of the plot. The difference is the direction of
+the tick marks: here they go *down* from zero, from -0.12 to 0. When bars
+stand on the axis, upward ticks would be hidden behind them. The tick marks
+sit at the country positions, between the two bars of each pair.
+
+The line is drawn after the bars, so it lies on top of them and stays
+visible across the full width. See [An axis line at
+zero](../techniques.qmd#sec-axis-line).
+
+### The axes
+
+```python
+ax.set_xticks(x, data["category"])
+ax.set_xlim(-0.6, len(data) - 0.4)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, -2, 7, 1)
+ax.tick_params(axis="y", direction="in", length=2.3)
+```
+
+- **The country codes** go under the pairs. The normal bottom axis line is
+  hidden, because the real axis is now at zero, and `length=0` removes the
+  tick marks at the bottom.
+- **The x-limits** run from -0.6 to 10.6, a little more than the usual half
+  step, so the outer bars do not touch the edges of the plot.
+- **The y-scale.** `set_y_scale(ax, -2, 7, 1)` sets limits and ticks in one
+  call: -2, -1, 0, ..., 7. Zero is one of the ticks. See [The
+  y-scale](../chart-style.qmd#sec-y-scale).
+
+### The legend
+
+```python
+ax.legend(loc="upper right", bbox_to_anchor=(1.0, 0.97), ncol=2,
+          handlelength=0.8, handleheight=0.8, handletextpad=0.4,
+          columnspacing=1.0)
+```
+
+The legend sits in the top right, in one row (`ncol=2`), where the bars are
+lowest. `handlelength=0.8` and `handleheight=0.8` make the colour boxes
+small squares, and the two spacing arguments bring the entries together so
+the row is compact. See [Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **Sort the countries.** To order them by the latest change, sort the data
+  before drawing: `data = data.sort_values("May 2026", ascending=False)`.
+  The positions, bars and labels all follow the new order.
+- **A third date.** Add it to `series_colours`, set `bar_width = 0.26` and
+  change the shift to `(i - 1) * bar_width`, so the middle bar is centred.
+  In general the shift is `(i - (n - 1) / 2) * bar_width` for `n` series.
+- **Full country names.** Replace the codes with a dictionary,
+  `names = {"CHL": "Chile", ...}`, and write
+  `ax.set_xticks(x, data["category"].map(names), rotation=90)`. Increase
+  `bottom_gap` for the longer labels.
+
+## The complete script
+
+The full `python/fig-3-3.py`, as it runs:
+
+```` {.python filename="python/fig-3-3.py"}
+"""Figure 3.3: Change in Commodity Terms of Trade."""
+import numpy as np
+
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-3-3"
+
+data = read_chart_data(STEM)
+
+series_colours = {"February 2026": "#C9ADD5", "May 2026": "#00689D"}
+
+fig, ax = new_chart(
+    title="Change in Commodity Terms of Trade",
+    subtitle="(Percent change relative to January 2025)",
+    caption=(
+        "Sources: IMF, Commodity Terms of Trade database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Commodity net export price index, individual commodities weighted\n"
+        "by ratio of net exports to GDP."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.3,
+)
+
+x = np.arange(len(data))
+bar_width = 0.38
+for i, (series, colour) in enumerate(series_colours.items()):
+    ax.bar(x + (i - 0.5) * bar_width, data[series], width=bar_width,
+           color=colour, label=series)
+
+# The x-axis is drawn at zero, with short tick marks pointing down; the
+# country labels stay at the bottom of the chart.
+ax.axhline(0, color="black", linewidth=0.7)
+ax.vlines(x, -0.12, 0, color="black", linewidth=0.6)
+
+ax.set_xticks(x, data["category"])
+ax.set_xlim(-0.6, len(data) - 0.4)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, -2, 7, 1)
+ax.tick_params(axis="y", direction="in", length=2.3)
+
+ax.legend(loc="upper right", bbox_to_anchor=(1.0, 0.97), ncol=2,
+          handlelength=0.8, handleheight=0.8, handletextpad=0.4,
+          columnspacing=1.0)
+
+save_chart(fig, STEM)
+````

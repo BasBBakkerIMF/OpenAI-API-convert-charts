@@ -1,0 +1,217 @@
+---
+title: "Figure 7.1: Real GDP Growth (projections)"
+---
+
+![Python: `python/fig-7-1.py`](../images/python/fig-7-1.png)
+
+Annual real GDP growth, with projections to 2028, for the United States,
+Canada and three Latin American and Caribbean groups. The Caribbean is shown
+twice:
+
+- **excluding Guyana and Suriname**, as a solid line on the left scale;
+- **including them**, as a dashed line on the right scale, because their
+  very fast growth, driven by new oil production, would otherwise squeeze
+  the scale for everyone else.
+
+**New in this chart:** a dashed series, also dashed in the legend.
+
+## The data
+
+Sheet `data`, 7 rows (2022 to 2028):
+
+| category | USA | CAN | LA7 | CAPDR | CARIB (excl. GUY/SUR) | CARIB (right scale) |
+|---|---|---|---|---|---|---|
+| 2022 | 2.43 | 4.70 | 3.61 | 5.61 | 4.66 | 13.80 |
+
+Six series, the years as numbers. The two Caribbean columns show how much
+Guyana and Suriname matter: in 2022, 4.66 percent growth without them and
+13.80 percent with them.
+
+## The script
+
+### The series
+
+```python
+left_series = {
+    "USA": "#145A8D",
+    "CAN": "#4D4D4D",
+    "LA7": "#66338A",
+    "CAPDR": "#C95A0A",
+    "CARIB (excl. GUY/SUR)": "#00A1A9",
+}
+right_series = "CARIB (right scale)"
+right_colour = "#00A1A9"
+dashed = (0, (3, 2))
+```
+
+The five left-scale series go in a dictionary for the loop. The right-scale
+series is kept apart, because it is drawn on a different axes object.
+
+Both Caribbean series use the same teal: they are the same region, and the
+dash is what tells them apart.
+
+The dash pattern is stored in a name, `dashed`, because it is used twice:
+for the line and for its legend entry. Writing it once guarantees that the
+two match. `(0, (3, 2))` means: start at the beginning of the pattern, then
+repeat a dash 3 line widths long and a gap 2 line widths long. See [Line
+styles](../techniques.qmd#sec-line-styles).
+
+### Two scales
+
+```python
+for series, colour in left_series.items():
+    ax.plot(years, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round")
+
+# CARIB including Guyana and Suriname grows much faster, so it is shown
+# dashed on the right-hand scale.
+ax_right = add_right_axis(ax, (4, 16), 2)
+ax_right.plot(years, data[right_series], color=right_colour, linewidth=1.8,
+              linestyle=dashed)
+ax_right.tick_params(axis="y", length=2.8)
+```
+
+The loop draws the five left-scale lines on `ax`. Then `add_right_axis()`
+creates `ax_right`, with its own y-axis on the right from 4 to 16, and the
+dashed Caribbean line is drawn on it. See [A right-hand
+scale](../chart-style.qmd#sec-right-axis).
+
+The left scale runs from 0 to 6 in steps of 1 and the right from 4 to 16 in
+steps of 2. Both have six intervals, so the ticks line up: 0 on the left is
+level with 4 on the right, 1 with 6, and so on. See [A right-hand
+scale](../techniques.qmd#sec-right-scale).
+
+None of the lines has a `label=`, because the legend is built by hand.
+
+### The axes
+
+```python
+ax.set_xlim(2021.5, 2028.5)
+ax.set_xticks(years)
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 0, 6, 1)
+ax.tick_params(axis="y", length=2.8)
+```
+
+Seven years, all labelled, with half a year of margin at each end. The left
+scale is set with the shared helper `set_y_scale()`.
+
+### A legend with a dashed entry
+
+```python
+handles = [Line2D([], [], color=c, linewidth=1.8) for c in left_series.values()]
+handles.append(Line2D([], [], color=right_colour, linewidth=1.8, linestyle=dashed))
+ax_right.legend(handles, [*left_series, right_series],
+                loc="upper left", bbox_to_anchor=(0.4, 1.0),
+                handlelength=3.4, labelspacing=0.05)
+```
+
+The legend has one solid sample line per left-scale series and one dashed
+line for the right-scale series.
+
+- **The samples.** `Line2D([], [], ...)` is a line with no data, used only
+  for the legend. The list comprehension makes five solid ones, one per
+  colour, and `handles.append(...)` adds a sixth with
+  `linestyle=dashed`. A legend sample copies whatever style it is given, so
+  the dash shows up in the legend exactly as in the chart.
+- **The names.** `[*left_series, right_series]` builds the list of names:
+  `*` unpacks the dictionary's keys, followed by one more name. The result
+  is `["USA", "CAN", "LA7", "CAPDR", "CARIB (excl. GUY/SUR)", "CARIB (right
+  scale)"]`, in the same order as the handles.
+- **Placement.** The legend is anchored by its top-left corner at 40
+  percent across the plot, at the top, where the lines leave room. It goes
+  on `ax_right`, the top layer, so no line covers it.
+- **Visible dashes.** `handlelength=3.4` makes the sample lines long enough
+  for the dashes to show; at the default length of 2, the sample would show
+  only one or two dashes.
+- `labelspacing=0.05` packs the six entries closely, so the legend fits in
+  the space above the lines.
+
+See [Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **Projections shaded.** To mark the projection years, add
+  `ax.axvspan(2025.5, 2028.5, color="#F2F2F2", zorder=0)` before drawing the
+  lines.
+- **All on one scale.** If a new edition no longer needs the right scale,
+  draw the dashed line on `ax`, delete the `add_right_axis()` line and widen
+  the left scale, for example `set_y_scale(ax, 0, 16, 2)`.
+- **Another dash.** `(0, (1, 1))` gives a dotted line, `(0, (6, 2, 1, 2))` a
+  dash-dot pattern.
+
+## The complete script
+
+The full `python/fig-7-1.py`, as it runs:
+
+```` {.python filename="python/fig-7-1.py"}
+"""Figure 7.1: Real GDP Growth (projections)."""
+from matplotlib.lines import Line2D
+
+from chart_style import (
+    add_right_axis,
+    new_chart,
+    read_chart_data,
+    save_chart,
+    set_y_scale,
+)
+
+STEM = "fig-7-1"
+
+data = read_chart_data(STEM)
+years = data["category"]
+
+left_series = {
+    "USA": "#145A8D",
+    "CAN": "#4D4D4D",
+    "LA7": "#66338A",
+    "CAPDR": "#C95A0A",
+    "CARIB (excl. GUY/SUR)": "#00A1A9",
+}
+right_series = "CARIB (right scale)"
+right_colour = "#00A1A9"
+dashed = (0, (3, 2))
+
+fig, ax = new_chart(
+    title="Real GDP Growth",
+    subtitle="(Year-over-year percent change)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Aggregates are purchasing-power-parity GDP-weighted average.\n"
+        "CAPDR = Central America, Panama, and the Dominican Republic; CARIB\n"
+        "= Caribbean; LA7 = Latin America 7 (Brazil, Chile, Colombia, Mexico,\n"
+        "Paraguay, Peru, Uruguay)."
+    ),
+    left=0.3,
+    right=0.35,
+    bottom_gap=0.3,
+)
+
+for series, colour in left_series.items():
+    ax.plot(years, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round")
+
+# CARIB including Guyana and Suriname grows much faster, so it is shown
+# dashed on the right-hand scale.
+ax_right = add_right_axis(ax, (4, 16), 2)
+ax_right.plot(years, data[right_series], color=right_colour, linewidth=1.8,
+              linestyle=dashed)
+ax_right.tick_params(axis="y", length=2.8)
+
+ax.set_xlim(2021.5, 2028.5)
+ax.set_xticks(years)
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 0, 6, 1)
+ax.tick_params(axis="y", length=2.8)
+
+handles = [Line2D([], [], color=c, linewidth=1.8) for c in left_series.values()]
+handles.append(Line2D([], [], color=right_colour, linewidth=1.8, linestyle=dashed))
+ax_right.legend(handles, [*left_series, right_series],
+                loc="upper left", bbox_to_anchor=(0.4, 1.0),
+                handlelength=3.4, labelspacing=0.05)
+
+save_chart(fig, STEM)
+````

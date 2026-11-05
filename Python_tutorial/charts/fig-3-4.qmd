@@ -1,0 +1,268 @@
+---
+title: "Figure 3.4: Overall and Trade Policy Uncertainties"
+---
+
+![Python: `python/fig-3-4.py`](../images/python/fig-3-4.png)
+
+Monthly uncertainty indices since 2021. World uncertainty (WUI) and trade
+policy uncertainty (TPU) are on the left scale; the uncertainty index for
+the United States is on the right scale, because its values are much
+smaller. Both indices count how often news reports mention uncertainty. A
+dotted vertical line marks the start of the Middle East conflict.
+
+**New in this chart:** a right-hand scale with one decimal, and a two-line
+label.
+
+## The data
+
+Sheet `data`, 200 rows of monthly data from 2010:
+
+| category | WUI | TPU | USA (right scale) |
+|---|---|---|---|
+| 2010-01-31 | 2.31 | 0.24 | 0.28 |
+
+The dates are at the end of each month (`2010-01-31`). pandas reads them as
+dates, not text, because they are stored as dates in the Excel file.
+
+The workbook holds the full history from 2010, but the published chart shows
+only January 2021 to August 2026. In Excel this is done by setting the axis
+bounds. Here the rows are filtered.
+
+## The script
+
+### Choosing the period
+
+```python
+START, END = pd.Timestamp("2021-01-01"), pd.Timestamp("2026-08-31")
+CONFLICT = pd.Timestamp("2026-03-01")
+
+data = read_chart_data(STEM)
+data = data[(data["category"] >= START) & (data["category"] <= END)]
+```
+
+The three dates are set at the top of the script, in capitals, the Python
+convention for constants. To update the chart for a new edition, these are
+the values to change.
+
+`pd.Timestamp("2021-01-01")` turns the text into a date that can be compared
+with the dates in the data. The second line keeps only the rows between
+`START` and `END`:
+
+- `data["category"] >= START` gives a column of `True` and `False`, one per
+  row.
+- `&` combines two such columns: `True` only where both are true. The
+  brackets around each comparison are required.
+- `data[...]` with a `True`/`False` column keeps the rows where it is
+  `True`.
+
+Filtering is not strictly needed, since the x-limits set below would hide
+the earlier rows anyway. But it keeps the data small and makes clear what is
+plotted. See [Dates on the x-axis](../techniques.qmd#sec-dates).
+
+### The series
+
+```python
+left_series = {"WUI": "#00649D", "TPU": "#D55E00"}
+usa = "USA (right scale)"
+usa_colour = "#666666"
+```
+
+The two left-scale series go in a dictionary for the loop. The right-scale
+series is kept apart, because it is drawn on a different axes object.
+
+`new_chart()` gets `right=0.4`, much more than the usual 0.15, to leave
+room for the right-hand tick labels.
+
+### Two scales
+
+```python
+for series, colour in left_series.items():
+    ax.plot(data["category"], data[series], color=colour, linewidth=1.7,
+            solid_capstyle="round")
+
+# USA is on the right-hand scale.
+ax_right = add_right_axis(ax, (0, 3), 0.5)
+ax_right.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+ax_right.tick_params(axis="y", length=2.8)
+ax_right.plot(data["category"], data[usa], color=usa_colour, linewidth=1.7,
+              solid_capstyle="round")
+```
+
+First WUI and TPU are drawn on `ax`. Then `add_right_axis()` creates
+`ax_right`, a second plot area on top of the first, with the same x-axis and
+its own y-axis on the right. The right-hand scale runs from 0 to 3 in steps
+of 0.5. See [A right-hand scale](../chart-style.qmd#sec-right-axis).
+
+The left scale (set below) runs from 0 to 14 in steps of 2: seven intervals.
+The right scale has six (3 / 0.5). The ticks on the two sides therefore do
+not line up, as in the published chart. Compare
+[Figure 5.1](fig-5-1.qmd), where they do.
+
+**One decimal on the right.** `FormatStrFormatter("%.1f")` writes every
+label with one decimal: 0.0, 0.5, 1.0, ..., 3.0. `%.1f` is Python's format
+code for "a number with one digit after the decimal point", like Excel's
+number format `0.0`. Without the formatter, matplotlib would write the
+labels as 0.0, 0.5, 1.0, ... as well in this case, but it decides the
+format by itself, and the result changes with the scale. Setting it
+explicitly matches the published chart whatever the data. See [Number
+formats](../techniques.qmd#sec-number-formats).
+
+### The event line and its label
+
+```python
+ax.axvline(CONFLICT, color="black", linewidth=0.6, linestyle=(0, (1, 1.5)))
+ax.text(CONFLICT - pd.Timedelta(days=15), 1.25, "Middle East\nconflict",
+        fontsize=8.7, fontstyle="italic", ha="right", va="bottom",
+        linespacing=1.0)
+```
+
+`ax.axvline(date)` draws a vertical line across the full height of the plot
+at March 2026. The line style `(0, (1, 1.5))` is a custom dash pattern:
+start at once (`0`), then repeat a dash 1 line width long and a gap 1.5
+line widths long, which gives a fine dotted line. matplotlib measures dash
+patterns in line widths, so the pattern scales if the line gets thicker. See [Line
+styles](../techniques.qmd#sec-line-styles).
+
+The label is placed with `ax.text(x, y, text)`, in data coordinates:
+
+- **x** is 15 days before the line. `pd.Timedelta(days=15)` is a duration
+  that can be subtracted from a date.
+- **y** is 1.25 on the left scale, near the bottom of the plot, where the
+  lines leave room.
+- `ha="right"` aligns the right edge of the text with x, so the label ends
+  just before the line. `va="bottom"` puts the bottom of the text at y.
+- The label has a line break (`\n`), so it fits in the space before the
+  dotted line. `linespacing=1.0` keeps the two lines close together.
+
+The text is written on `ax`, so its y-position is on the left scale. See
+[Text, arrows and coordinates](../techniques.qmd#sec-text).
+
+### The axes
+
+```python
+ax.set_xlim(START, END)
+ax.set_xticks(pd.date_range(START, "2026-07-01", freq="6MS"))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))
+ax.tick_params(axis="x", labelrotation=90, length=2.8)
+
+set_y_scale(ax, 0, 14, 2)
+ax.tick_params(axis="y", length=2.8)
+```
+
+- **The x-limits** are the same dates used to filter the rows.
+- **The ticks.** `pd.date_range(START, "2026-07-01", freq="6MS")` gives the
+  first day of every sixth month: Jan-21, Jul-21, Jan-22, ..., Jul-26.
+- **The labels** are formatted as `Jan-21` with `DateFormatter("%b-%y")`
+  and written vertically.
+- **The left scale** runs from 0 to 14 with a tick every 2.
+
+### The legend
+
+```python
+styles = {**left_series, usa: usa_colour}
+ax_right.legend(
+    [Line2D([], [], color=c, linewidth=1.8) for c in styles.values()],
+    list(styles),
+    loc="upper left", bbox_to_anchor=(0.03, 1.0), handlelength=3.0,
+    labelspacing=0.1,
+)
+```
+
+The lines are on two axes objects, so neither knows all three. The legend
+is therefore built from sample lines (`Line2D`), one per colour, with the
+names from `styles`. It is placed on `ax_right`, the top layer, so no line
+is drawn over it. See [A right-hand scale](../techniques.qmd#sec-right-scale)
+and [Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **A longer period.** Change `END` and the last tick date. If the labels
+  get crowded, use `freq="12MS"` for one label a year.
+- **A different event.** Change `CONFLICT` and the label text. If the line
+  is close to the left edge, put the label to the right of it: add 15 days
+  instead of subtracting, and use `ha="left"`.
+- **Aligned ticks.** For ticks that line up on both sides, give the right
+  scale seven intervals too, for example `add_right_axis(ax, (0, 3.5), 0.5)`.
+
+## The complete script
+
+The full `python/fig-3-4.py`, as it runs:
+
+```` {.python filename="python/fig-3-4.py"}
+"""Figure 3.4: Overall and Trade Policy Uncertainties."""
+import matplotlib.dates as mdates
+import pandas as pd
+from matplotlib.lines import Line2D
+from matplotlib.ticker import FormatStrFormatter
+
+from chart_style import (
+    add_right_axis,
+    new_chart,
+    read_chart_data,
+    save_chart,
+    set_y_scale,
+)
+
+STEM = "fig-3-4"
+
+START, END = pd.Timestamp("2021-01-01"), pd.Timestamp("2026-08-31")
+CONFLICT = pd.Timestamp("2026-03-01")
+
+data = read_chart_data(STEM)
+data = data[(data["category"] >= START) & (data["category"] <= END)]
+
+left_series = {"WUI": "#00649D", "TPU": "#D55E00"}
+usa = "USA (right scale)"
+usa_colour = "#666666"
+
+fig, ax = new_chart(
+    title="Overall and Trade Policy Uncertainties",
+    subtitle="(Index)",
+    caption=(
+        "Sources: Ahir, H, N Bloom, and D Furceri (2022), “World Uncertainty\n"
+        "Index”, NBER Working Paper; Caldara and others (2020); and Haver\n"
+        "Analytics.\n"
+        "Note: The uncertainty measures are news- and media-outlets-based\n"
+        "indices that quantify media attention to global news related to overall\n"
+        "uncertainty (WUI) and trade policy uncertainty (TPU). Uncertainty index\n"
+        "shown for the United States is from the WUI."
+    ),
+    left=0.3,
+    right=0.4,
+    bottom_gap=0.5,
+)
+
+for series, colour in left_series.items():
+    ax.plot(data["category"], data[series], color=colour, linewidth=1.7,
+            solid_capstyle="round")
+
+# USA is on the right-hand scale.
+ax_right = add_right_axis(ax, (0, 3), 0.5)
+ax_right.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+ax_right.tick_params(axis="y", length=2.8)
+ax_right.plot(data["category"], data[usa], color=usa_colour, linewidth=1.7,
+              solid_capstyle="round")
+
+ax.axvline(CONFLICT, color="black", linewidth=0.6, linestyle=(0, (1, 1.5)))
+ax.text(CONFLICT - pd.Timedelta(days=15), 1.25, "Middle East\nconflict",
+        fontsize=8.7, fontstyle="italic", ha="right", va="bottom",
+        linespacing=1.0)
+
+ax.set_xlim(START, END)
+ax.set_xticks(pd.date_range(START, "2026-07-01", freq="6MS"))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))
+ax.tick_params(axis="x", labelrotation=90, length=2.8)
+
+set_y_scale(ax, 0, 14, 2)
+ax.tick_params(axis="y", length=2.8)
+
+styles = {**left_series, usa: usa_colour}
+ax_right.legend(
+    [Line2D([], [], color=c, linewidth=1.8) for c in styles.values()],
+    list(styles),
+    loc="upper left", bbox_to_anchor=(0.03, 1.0), handlelength=3.0,
+    labelspacing=0.1,
+)
+
+save_chart(fig, STEM)
+````

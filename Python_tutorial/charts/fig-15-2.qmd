@@ -1,0 +1,162 @@
+---
+title: "Figure 15.2: China's Share of Latin American Passenger Car Imports"
+---
+
+![Python: `python/fig-15-2.py`](../images/python/fig-15-2.png)
+
+China's share of passenger car imports in Latin America: the regional
+average as a line, and the range across countries as a shaded area. The
+bottom of the band is the country with the lowest share in that year, the
+top the country with the highest. The chart shows both how fast the average
+has risen and how unequal the rise has been.
+
+**A short band chart.** Together with [Figure 1.2.2](fig-1-2-2.qmd), it is
+the template for a line with a min–max range. If you need to draw that kind
+of chart, start from this script.
+
+## The data
+
+Sheet `data`, 11 rows (2015 to 2025):
+
+| category | Min | Difference | LATAM |
+|---|---|---|---|
+| 2015 | 0.09 | 10.84 | 2.51 |
+
+There is no `Max` column. In Excel, a shaded range is usually built as a
+stacked area chart with two series: an invisible bottom series (`Min`) and,
+stacked on top of it, a visible series that is the width of the band
+(`Difference`, the maximum minus the minimum). The data extracted from the
+chart therefore has these two helper series, and the script adds them up to
+get the top of the band. See [Shaded bands](../techniques.qmd#sec-bands).
+
+`LATAM` is the regional average, drawn as the line.
+
+## The script
+
+### The frame
+
+```python
+data = read_chart_data(STEM)
+years = data["category"]
+
+fig, ax = new_chart(
+    title="China's Share of Latin American Passenger Car\nImports",
+    subtitle="(Percent share)",
+    caption=(
+        "Sources: UN Comtrade; World Bank, World Integrated Trade Solution;\n"
+        "and IMF staff calculations.\n"
+        "Note: Shaded area refers to the min-max range."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.3,
+)
+```
+
+The years are stored once in `years`, because they are used by both the band
+and the line. The title is long, so it breaks before "Imports", as in the
+published chart. `new_chart()` sees the `\n` and moves the plot down by one
+title line.
+
+The caption explains the shaded area. That is why the chart needs no legend.
+
+### The band and the line
+
+```python
+# In Excel the min-max range is a stacked area: "Min" plus "Difference".
+ax.fill_between(years, data["Min"], data["Min"] + data["Difference"],
+                color="#F2EDF4", linewidth=0)
+ax.plot(years, data["LATAM"], color="#5B2677", linewidth=1.9,
+        solid_capstyle="round")
+```
+
+`ax.fill_between(x, lower, upper)` fills the area between two curves. Here
+`lower` is the minimum and `upper` is the minimum plus the difference, which
+is the maximum. pandas adds the two columns row by row, so
+`data["Min"] + data["Difference"]` is a new column of 11 values.
+
+- `color="#F2EDF4"` is a very light purple, the same hue as the line but
+  much paler, so the band stays in the background.
+- `linewidth=0` removes the outline that matplotlib otherwise draws around a
+  filled area. Excel draws the stacked area without an outline, too.
+
+The average line comes second, so it is drawn on top of the band. In
+matplotlib, as in Excel's series order, what is drawn later lies on top.
+`#5B2677` is a dark purple. `solid_capstyle="round"` gives it rounded ends.
+
+The order matters more than it seems: if you swap the two calls, the line
+disappears under the band wherever the band covers it.
+
+### The axes
+
+```python
+ax.set_xlim(2014.5, 2025.5)
+ax.set_xticks(range(2015, 2026, 2))
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 0, 50, 10)
+ax.tick_params(axis="y", length=2.8)
+```
+
+- **The x-axis** runs half a year beyond the first and last points, so the
+  band does not touch the edges. `range(2015, 2026, 2)` labels every second
+  year: 2015, 2017, ..., 2025.
+- **The y-axis** runs from 0 to 50 with a tick every 10, set with the shared
+  helper [`set_y_scale()`](../chart-style.qmd#sec-y-scale).
+- **The tick marks** are 2.8 points long on both axes, and `pad=5` leaves a
+  small gap between the x-ticks and the year labels.
+
+The script ends with `save_chart(fig, STEM)`.
+
+## Changing the chart
+
+- **A different band colour.** Keep the band much lighter than the line.
+  An easy way is to use the line colour with transparency:
+  `color="#5B2677", alpha=0.1`.
+- **A data set with `Max` instead of `Difference`.** Use
+  `ax.fill_between(years, data["Min"], data["Max"], ...)` directly.
+- **A legend for the band.** Add `label="Min-max range"` to `fill_between`
+  and `label="Average"` to `plot`, then call `ax.legend()`. matplotlib draws
+  a filled square for the band and a line for the average.
+
+## The complete script
+
+The full `python/fig-15-2.py`, as it runs:
+
+```` {.python filename="python/fig-15-2.py"}
+"""Figure 15.2: China's Share of Latin American Passenger Car Imports."""
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-15-2"
+
+data = read_chart_data(STEM)
+years = data["category"]
+
+fig, ax = new_chart(
+    title="China's Share of Latin American Passenger Car\nImports",
+    subtitle="(Percent share)",
+    caption=(
+        "Sources: UN Comtrade; World Bank, World Integrated Trade Solution;\n"
+        "and IMF staff calculations.\n"
+        "Note: Shaded area refers to the min-max range."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.3,
+)
+
+# In Excel the min-max range is a stacked area: "Min" plus "Difference".
+ax.fill_between(years, data["Min"], data["Min"] + data["Difference"],
+                color="#F2EDF4", linewidth=0)
+ax.plot(years, data["LATAM"], color="#5B2677", linewidth=1.9,
+        solid_capstyle="round")
+
+ax.set_xlim(2014.5, 2025.5)
+ax.set_xticks(range(2015, 2026, 2))
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 0, 50, 10)
+ax.tick_params(axis="y", length=2.8)
+
+save_chart(fig, STEM)
+````

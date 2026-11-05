@@ -1,0 +1,656 @@
+---
+title: "The shared layout: chart_style.py"
+---
+
+Every REO chart has the same frame:
+
+- a bold title and an italic subtitle at the top left;
+- the sources and notes at the bottom left;
+- the plot in between.
+
+All charts use the same font and the same picture size. Rather than set all
+of this in each of the 38 scripts, it lives in one module,
+`python/chart_style.py`, which every script imports:
+
+```python
+from chart_style import new_chart, read_chart_data, save_chart
+```
+
+A *module* is simply a `.py` file whose functions other files can use. This
+chapter walks through it from top to bottom.
+
+| Name | What it does |
+|---|---|
+| [`plt.rcParams`](#sec-rcparams) | House style: font, sizes, which axis lines are shown |
+| [`read_chart_data(stem, sheet)`](#sec-read) | Reads the chart's data from `excel_and_png/<stem>.xlsx` |
+| [`new_chart(title, subtitle, caption, ...)`](#sec-new-chart) | Creates the figure with title, subtitle and caption; returns the plot area |
+| [`set_y_scale(ax, low, high, step)`](#sec-y-scale) | Sets the y-axis range and a tick every `step` |
+| [`add_right_axis(ax, ylim, step)`](#sec-right-axis) | Adds a right-hand scale |
+| [`smooth_line(x, y)`](#sec-smooth) | A smooth curve through points, like Excel's "smoothed line" |
+| [`save_chart(fig, stem)`](#sec-save) | Saves `python/figures/<stem>.png` |
+
+## Why a shared module?
+
+The R scripts that the pipeline generates repeat 40–60 lines of layout
+settings in every script. When the house style changes, all of them have to
+change. A shared module means:
+
+- **One place to change the style.** A different font or picture size is one
+  edit.
+- **Short chart scripts.** What is left in each script is what makes that
+  chart different: its series, colours, scales and labels.
+- **The same layout everywhere.** Titles and sources sit in exactly the same
+  place on every chart, as in the publication.
+
+## Set-up and constants
+
+```python
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+import pandas as pd
+```
+
+- `from __future__ import annotations` lets the function definitions below
+  use type hints such as `str | None` on older Python versions. It does not
+  change how the code runs.
+- `matplotlib.use("Agg")` selects matplotlib's *non-interactive* back end.
+  It draws straight to a PNG file without opening a window. The scripts only
+  save pictures, and with this setting they also run where there is no
+  screen, for example on a server. It must come before `import
+  matplotlib.pyplot`.
+- `plt` and `pd` are the conventional short names for matplotlib's plotting
+  interface and for pandas.
+
+```python
+PYTHON_DIR = Path(__file__).resolve().parent
+DATA_DIR = PYTHON_DIR.parent / "excel_and_png"
+FIGURES_DIR = PYTHON_DIR / "figures"
+```
+
+`__file__` is the location of `chart_style.py` itself. `.parent` is its
+folder, `python/`. The `/` operator joins paths. The data folder is therefore
+always found next to `python/`, whichever folder you run a script from, and
+without hard-coding a drive letter such as `K:`.
+
+```python
+WIDTH = 5.0   # inches
+HEIGHT = 5.0  # inches
+DPI = 600
+PT = 1 / 72   # one point in inches
+
+TEXT_COLOUR = "#111111"
+```
+
+The REO charts are 5 × 5 inches, saved at 600 dots per inch. That gives a
+3000 × 3000 pixel picture, the same as the R versions. Font sizes are in
+*points*, and a point is 1/72 of an inch. `PT` converts between the two when
+`new_chart()` works out how much room a line of text takes. Names in capitals
+are, by convention, constants: values that are set once and not changed.
+
+## The house style: `rcParams` {#sec-rcparams}
+
+```python
+plt.rcParams.update(
+    {
+        "font.family": "Arial",
+        "font.size": 9,
+        "text.color": TEXT_COLOUR,
+        "axes.edgecolor": TEXT_COLOUR,
+        "axes.linewidth": 0.6,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "xtick.color": TEXT_COLOUR,
+        "ytick.color": TEXT_COLOUR,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "xtick.major.width": 0.5,
+        "ytick.major.width": 0.5,
+        "legend.frameon": False,
+        "legend.fontsize": 9,
+        "axes.unicode_minus": False,  # "-3" as in Excel, not "−3"
+    }
+)
+```
+
+`plt.rcParams` holds matplotlib's default settings. Changing it here, when
+the module is imported, changes the defaults for every chart that follows. A
+chart can still override any of them. Some of the settings need explaining:
+
+- **`axes.spines.top`, `axes.spines.right`**: matplotlib calls the four
+  lines around the plot area *spines*. REO charts only show the left and
+  bottom ones, like Excel charts.
+- **`legend.frameon`**: no box around the legend.
+- **`axes.unicode_minus`**: by default matplotlib writes negative numbers
+  with a typographic minus sign (−). Excel uses the ordinary hyphen (-), so
+  this is switched off to match.
+
+## Reading the data: `read_chart_data()` {#sec-read}
+
+```python
+def read_chart_data(stem: str, sheet: str = "data") -> pd.DataFrame:
+    """Read the data extracted from the Excel chart (step 4 of the pipeline)."""
+    return pd.read_excel(DATA_DIR / f"{stem}.xlsx", sheet_name=sheet)
+```
+
+- `def` defines a function. `stem: str` says that `stem` is a text (*string*)
+  argument. `sheet: str = "data"` is an argument with a default value, so
+  `read_chart_data("fig-3-1")` reads the sheet `data`.
+- `f"{stem}.xlsx"` is an *f-string*: the text between the braces is replaced
+  by the value of `stem`, giving `"fig-3-1.xlsx"`.
+- The text in triple quotes right below the `def` line is the function's
+  *docstring*, its documentation.
+
+Charts with two panels have two sheets, `datal` and `datar` (left and
+right), and pass the sheet name: `read_chart_data(STEM, "datal")`.
+
+The result is a pandas DataFrame. The first column, `category`, holds the
+x-axis values: years, quarters, dates or country names. Each further column
+is one series of the Excel chart, named as in the Excel legend. pandas
+recognises dates in the workbook and stores them as dates.
+
+## The frame: `new_chart()` {#sec-new-chart}
+
+This is the heart of the module. It creates the figure, writes the title,
+subtitle and caption, and places the plot area in the space that is left.
+
+![What `new_chart()` sets out on the 5 × 5 inch figure. The orange arguments are in inches.](images/layout.png){width=70%}
+
+```python
+def new_chart(
+    title: str,
+    subtitle: str | None,
+    caption: str,
+    *,
+    title_size: float = 13,
+    subtitle_size: float = 11,
+    caption_size: float = 8.5,
+    left: float = 0.4,
+    right: float = 0.15,
+    top_gap: float = 0.12,
+    bottom_gap: float = 0.35,
+    ncols: int = 1,
+    wspace: float = 0.6,
+):
+```
+
+The first three arguments are the texts. `subtitle` can be `None` for a chart
+without one. The `*` means that all arguments after it must be given by name,
+as in `new_chart(..., left=0.35)`. This keeps the calls readable: you can see
+which number is which.
+
+The remaining arguments are the chart's *fine-tuning*:
+
+- **Font sizes** of the three texts, in points. A long title can be made a
+  little smaller to fit on one line.
+- **The space around the plot area**, in inches. `left` makes room for the
+  y-axis labels and `right` for a right-hand scale. `top_gap` separates the
+  subtitle from the plot. `bottom_gap` makes room for the x-axis labels, and
+  vertical date labels need more of it.
+- **`ncols` and `wspace`** are for charts with panels side by side (see
+  below).
+
+### Why place everything by hand?
+
+matplotlib can arrange a figure automatically (`tight_layout`,
+`constrained_layout`). The automatic layout makes the plot area as large as
+possible, so its size changes with the length of the title, the number of
+caption lines and the width of the tick labels. REO charts instead have a
+fixed frame, so `new_chart()` measures the texts and places each element at
+an exact position in inches. This is how the charts are made to look like the
+Excel originals. The price is that each chart sets its own margins.
+
+### The texts
+
+```python
+    fig = plt.figure(figsize=(WIDTH, HEIGHT))
+
+    outer = 0.06
+    text_x = 0.1 / WIDTH
+
+    y = HEIGHT - outer
+    fig.text(
+        text_x, y / HEIGHT, title,
+        fontsize=title_size, fontweight="bold",
+        ha="left", va="top", linespacing=1.0,
+    )
+    y -= (title.count("\n") + 1) * title_size * 1.17 * PT
+```
+
+`fig.text(x, y, text)` writes text at a position in *figure coordinates*,
+where (0, 0) is the bottom-left corner of the picture and (1, 1) the top
+right. That is why inches are divided by `WIDTH` or `HEIGHT`. `ha` and `va`
+(horizontal and vertical alignment) say which point of the text goes there.
+Here the top left of the title goes 0.06 inches below the top edge and 0.1
+inches from the left edge.
+
+`y` keeps track of how far down the page we are. After the title it moves
+down by the height of the title. That is the number of lines (one plus the
+number of line breaks `\n`) times the font size, times 1.17 for line spacing,
+converted from points to inches. The subtitle is placed in the same way just
+below. If the subtitle is `None`, the `if subtitle:` block is skipped.
+
+The caption is anchored the other way round. Its *bottom* left goes 0.06
+inches above the bottom edge, and its height is calculated so the plot can
+stop above it:
+
+```python
+    if caption:
+        fig.text(
+            text_x, outer / HEIGHT, caption,
+            fontsize=caption_size,
+            ha="left", va="bottom", linespacing=1.1,
+        )
+        caption_height = (caption.count("\n") + 1) * caption_size * 1.2 * PT
+    else:
+        caption_height = 0
+```
+
+Line breaks in the title and caption are written into the texts by hand
+(`"...and\nIMF staff calculations."`). This copies the line breaks of the
+published chart exactly, instead of leaving the wrapping to the software.
+
+### The plot area
+
+```python
+    axes_top = y - top_gap
+    axes_bottom = outer + caption_height + bottom_gap
+    panel_width = (WIDTH - left - right - (ncols - 1) * wspace) / ncols
+
+    axes = [
+        fig.add_axes(
+            [
+                (left + i * (panel_width + wspace)) / WIDTH,
+                axes_bottom / HEIGHT,
+                panel_width / WIDTH,
+                (axes_top - axes_bottom) / HEIGHT,
+            ]
+        )
+        for i in range(ncols)
+    ]
+    return fig, (axes[0] if ncols == 1 else axes)
+```
+
+What is left between the subtitle and the caption becomes the plot area.
+`fig.add_axes([left, bottom, width, height])` creates a plot area (an *axes*
+object) at that position, again in figure coordinates.
+
+For a chart with panels side by side, the available width is shared out
+between `ncols` panels with a gap of `wspace` inches between them. The `[...
+for i in range(ncols)]` construction is a *list comprehension*: it builds a
+list with one panel for each `i = 0, 1, ...`.
+
+The function returns two things. Python lets you unpack them in one line:
+
+```python
+fig, ax = new_chart(...)                 # one panel: ax is the plot area
+fig, axes = new_chart(..., ncols=2)      # two panels: axes is a list of two
+fig, (ax_left, ax_right) = new_chart(..., ncols=2)   # or unpacked directly
+```
+
+Everything you draw goes on `ax`: `ax.plot(...)`, `ax.bar(...)`,
+`ax.set_ylim(...)`. `fig` is only needed again for saving.
+
+## The y-scale: `set_y_scale()` {#sec-y-scale}
+
+```python
+def set_y_scale(ax: plt.Axes, low: float, high: float, step: float) -> None:
+    """Set the y-axis limits, with a tick every `step` starting at `low`."""
+    import numpy as np
+
+    ax.set_ylim(low, high)
+    ax.set_yticks(np.arange(low, high + step / 2, step))
+```
+
+This is the equivalent of Excel's *Minimum*, *Maximum* and *Major unit* in
+the axis options. `np.arange(low, high, step)` makes the sequence `low, low +
+step, ...` but *stops before* `high`. Adding half a step makes sure `high`
+itself is included, even when rounding makes, say, 0.6 come out as
+0.6000000001.
+
+`set_y_scale(ax, -6, 9, 3)` gives a y-axis from -6 to 9 with labels at -6,
+-3, 0, 3, 6 and 9. Some scripts use the equivalent `ax.set_ylim(0, 5)`
+together with `MultipleLocator(1)` (see [Number formats and tick
+spacing](techniques.qmd#sec-number-formats)).
+
+## A right-hand scale: `add_right_axis()` {#sec-right-axis}
+
+```python
+def add_right_axis(ax: plt.Axes, ylim, step) -> plt.Axes:
+    """Add a right-hand scale to ax, with its own limits and tick spacing."""
+    ax_right = ax.twinx()
+    set_y_scale(ax_right, ylim[0], ylim[1], step)
+    ax_right.spines["right"].set_visible(True)
+    ax_right.spines["top"].set_visible(False)
+    return ax_right
+```
+
+`ax.twinx()` creates a second plot area on top of the first. The two *share
+the x-axis* (twin x) but have their own y-axis, shown on the right. Series
+drawn on `ax_right` use the right-hand scale. Because the house style hides
+the right spine, it is switched back on here.
+
+```python
+ax_right = add_right_axis(ax, (0, 100), 25)    # right scale from 0 to 100, ticks every 25
+ax_right.plot(x, data["Gold (right scale)"])
+```
+
+See [A right-hand scale](techniques.qmd#sec-right-scale) for the legend and
+drawing-order details that come with it.
+
+## Smoothed lines: `smooth_line()` {#sec-smooth}
+
+Excel's *smoothed line* option draws a curve through the data points instead
+of straight segments. matplotlib has no such option, so `smooth_line()`
+computes the curve, which `ax.plot()` then draws.
+
+```python
+def smooth_line(x, y, points_per_segment: int = 20):
+    """
+    Return x and y of a smooth curve through the points, like Excel's
+    "smoothed line" option (a Catmull-Rom spline).
+    """
+    import numpy as np
+
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    px = np.concatenate([[2 * x[0] - x[1]], x, [2 * x[-1] - x[-2]]])
+    py = np.concatenate([[2 * y[0] - y[1]], y, [2 * y[-1] - y[-2]]])
+
+    t = np.linspace(0, 1, points_per_segment, endpoint=False)[:, None]
+    t2, t3 = t * t, t * t * t
+    out = []
+    for p in (px, py):
+        p0, p1, p2, p3 = p[:-3], p[1:-2], p[2:-1], p[3:]
+        seg = 0.5 * (
+            2 * p1
+            + (-p0 + p2) * t
+            + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+            + (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+        )
+        out.append(np.concatenate([seg.T.ravel(), p[-2:-1]]))
+    return out[0], out[1]
+```
+
+You don't need to follow the algebra to use it. In outline:
+
+- **The method** is a *Catmull-Rom spline*, a curve that passes exactly
+  through every data point. Between two neighbouring points it is a cubic
+  polynomial. The shape of that piece depends on the two points on either
+  side, so the direction of the curve changes smoothly at each point. This
+  is close to what Excel draws.
+- **The ends.** The first and last segments have no neighbour on one side,
+  so the code adds an imaginary point beyond each end. It does this by
+  mirroring the second point through the first (`2 * x[0] - x[1]`), and the
+  same at the other end.
+- **The output.** Each segment is evaluated at 20 values of `t` between 0
+  and 1, and the last data point is added at the end. The result is two
+  arrays, the x and y coordinates of the curve.
+- **x and y separately.** They are smoothed in the same way. The curve may
+  therefore run back on itself, which the policy-mix charts
+  ([11.1](charts/fig-11-1.qmd), [11.2](charts/fig-11-2.qmd)) need: there a
+  country's path can move left as well as right.
+
+It is used like this, with `*` to pass the two returned arrays as the x and y
+arguments of `ax.plot()`:
+
+```python
+ax.plot(*smooth_line(data["category"], data["Average pairwise gap"]), color="#0067A9")
+```
+
+## Saving: `save_chart()` {#sec-save}
+
+```python
+def save_chart(fig: plt.Figure, stem: str) -> Path:
+    """Save the chart as python/figures/<stem>.png."""
+    import time
+
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    output_file = FIGURES_DIR / f"{stem}.png"
+
+    # On Windows, an image that is open in a viewer or being scanned can be
+    # briefly locked; try again a few times before giving up.
+    for attempt in range(5):
+        try:
+            fig.savefig(output_file, dpi=DPI, facecolor="white")
+            break
+        except OSError:
+            if attempt == 4:
+                raise
+            time.sleep(1)
+    plt.close(fig)
+    print(f"Saved {output_file}")
+    return output_file
+```
+
+- `mkdir(parents=True, exist_ok=True)` creates `python/figures/` if it does
+  not exist yet, and does nothing if it does.
+- **The retry loop.** On Windows, a picture that is open in a viewer, or
+  being scanned by antivirus software, can be locked for a moment. Saving it
+  then fails with an `OSError`. `try ... except` catches the error, waits a
+  second and tries again. Only after the fifth failure is the error passed
+  on (`raise`).
+- `facecolor="white"` gives the picture a white background rather than a
+  transparent one.
+- `plt.close(fig)` frees the memory the figure uses. This matters when many
+  charts are drawn in one session.
+
+## Changing the house style
+
+Some typical changes, and where to make them:
+
+| To change | Edit |
+|---|---|
+| The font, for all charts | `"font.family"` in `rcParams` |
+| The picture size or resolution | `WIDTH`, `HEIGHT`, `DPI` |
+| Where the title starts | `outer` and `text_x` in `new_chart()` |
+| The default title or caption size | The defaults of `title_size`, `caption_size` |
+| The output folder | `FIGURES_DIR` |
+| One chart's margins or sizes | That chart's `new_chart(...)` call, not this module |
+
+## The complete script
+
+The full `python/chart_style.py`, as it runs:
+
+```` {.python filename="python/chart_style.py"}
+"""
+Shared layout for the REO charts drawn with matplotlib.
+
+Every chart has the same frame: a bold title and an italic subtitle at the
+top left, the sources and notes at the bottom left, and the plot in between.
+The figure is 5 x 5 inches and saved at 600 dpi, like the R versions.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+PYTHON_DIR = Path(__file__).resolve().parent
+DATA_DIR = PYTHON_DIR.parent / "excel_and_png"
+FIGURES_DIR = PYTHON_DIR / "figures"
+
+WIDTH = 5.0   # inches
+HEIGHT = 5.0  # inches
+DPI = 600
+PT = 1 / 72   # one point in inches
+
+TEXT_COLOUR = "#111111"
+
+plt.rcParams.update(
+    {
+        "font.family": "Arial",
+        "font.size": 9,
+        "text.color": TEXT_COLOUR,
+        "axes.edgecolor": TEXT_COLOUR,
+        "axes.linewidth": 0.6,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "xtick.color": TEXT_COLOUR,
+        "ytick.color": TEXT_COLOUR,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "xtick.major.width": 0.5,
+        "ytick.major.width": 0.5,
+        "legend.frameon": False,
+        "legend.fontsize": 9,
+        "axes.unicode_minus": False,  # "-3" as in Excel, not "−3"
+    }
+)
+
+
+def read_chart_data(stem: str, sheet: str = "data") -> pd.DataFrame:
+    """Read the data extracted from the Excel chart (step 4 of the pipeline)."""
+    return pd.read_excel(DATA_DIR / f"{stem}.xlsx", sheet_name=sheet)
+
+
+def new_chart(
+    title: str,
+    subtitle: str | None,
+    caption: str,
+    *,
+    title_size: float = 13,
+    subtitle_size: float = 11,
+    caption_size: float = 8.5,
+    left: float = 0.4,
+    right: float = 0.15,
+    top_gap: float = 0.12,
+    bottom_gap: float = 0.35,
+    ncols: int = 1,
+    wspace: float = 0.6,
+):
+    """
+    Create a figure with title, subtitle and caption, and return it with the
+    plot axes.
+
+    left, right, top_gap and bottom_gap (inches) set the space around the
+    plot area: room for the y-axis labels, the x-axis labels, and so on.
+
+    For a figure with several panels side by side, pass ncols; wspace
+    (inches) is the gap between panels. A list of axes is then returned.
+    """
+    fig = plt.figure(figsize=(WIDTH, HEIGHT))
+
+    outer = 0.06
+    text_x = 0.1 / WIDTH
+
+    y = HEIGHT - outer
+    fig.text(
+        text_x, y / HEIGHT, title,
+        fontsize=title_size, fontweight="bold",
+        ha="left", va="top", linespacing=1.0,
+    )
+    y -= (title.count("\n") + 1) * title_size * 1.17 * PT
+
+    if subtitle:
+        fig.text(
+            text_x, y / HEIGHT, subtitle,
+            fontsize=subtitle_size, fontstyle="italic",
+            ha="left", va="top", linespacing=1.0,
+        )
+        y -= (subtitle.count("\n") + 1) * subtitle_size * 1.2 * PT
+
+    if caption:
+        fig.text(
+            text_x, outer / HEIGHT, caption,
+            fontsize=caption_size,
+            ha="left", va="bottom", linespacing=1.1,
+        )
+        caption_height = (caption.count("\n") + 1) * caption_size * 1.2 * PT
+    else:
+        caption_height = 0
+
+    axes_top = y - top_gap
+    axes_bottom = outer + caption_height + bottom_gap
+    panel_width = (WIDTH - left - right - (ncols - 1) * wspace) / ncols
+
+    axes = [
+        fig.add_axes(
+            [
+                (left + i * (panel_width + wspace)) / WIDTH,
+                axes_bottom / HEIGHT,
+                panel_width / WIDTH,
+                (axes_top - axes_bottom) / HEIGHT,
+            ]
+        )
+        for i in range(ncols)
+    ]
+    return fig, (axes[0] if ncols == 1 else axes)
+
+
+def set_y_scale(ax: plt.Axes, low: float, high: float, step: float) -> None:
+    """Set the y-axis limits, with a tick every `step` starting at `low`."""
+    import numpy as np
+
+    ax.set_ylim(low, high)
+    ax.set_yticks(np.arange(low, high + step / 2, step))
+
+
+def add_right_axis(ax: plt.Axes, ylim, step) -> plt.Axes:
+    """Add a right-hand scale to ax, with its own limits and tick spacing."""
+    ax_right = ax.twinx()
+    set_y_scale(ax_right, ylim[0], ylim[1], step)
+    ax_right.spines["right"].set_visible(True)
+    ax_right.spines["top"].set_visible(False)
+    return ax_right
+
+
+def smooth_line(x, y, points_per_segment: int = 20):
+    """
+    Return x and y of a smooth curve through the points, like Excel's
+    "smoothed line" option (a Catmull-Rom spline).
+    """
+    import numpy as np
+
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    px = np.concatenate([[2 * x[0] - x[1]], x, [2 * x[-1] - x[-2]]])
+    py = np.concatenate([[2 * y[0] - y[1]], y, [2 * y[-1] - y[-2]]])
+
+    t = np.linspace(0, 1, points_per_segment, endpoint=False)[:, None]
+    t2, t3 = t * t, t * t * t
+    out = []
+    for p in (px, py):
+        p0, p1, p2, p3 = p[:-3], p[1:-2], p[2:-1], p[3:]
+        seg = 0.5 * (
+            2 * p1
+            + (-p0 + p2) * t
+            + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+            + (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+        )
+        out.append(np.concatenate([seg.T.ravel(), p[-2:-1]]))
+    return out[0], out[1]
+
+
+def save_chart(fig: plt.Figure, stem: str) -> Path:
+    """Save the chart as python/figures/<stem>.png."""
+    import time
+
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    output_file = FIGURES_DIR / f"{stem}.png"
+
+    # On Windows, an image that is open in a viewer or being scanned can be
+    # briefly locked; try again a few times before giving up.
+    for attempt in range(5):
+        try:
+            fig.savefig(output_file, dpi=DPI, facecolor="white")
+            break
+        except OSError:
+            if attempt == 4:
+                raise
+            time.sleep(1)
+    plt.close(fig)
+    print(f"Saved {output_file}")
+    return output_file
+````

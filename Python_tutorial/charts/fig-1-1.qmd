@@ -1,0 +1,242 @@
+---
+title: "Figure 1.1: Real GDP Growth"
+---
+
+![Python: `python/fig-1-1.py`](../images/python/fig-1-1.png)
+
+Four lines of quarterly GDP growth. This is the first and simplest kind of
+chart in the REO, so this page explains **every line of the script**. Later
+pages only explain what is new.
+
+## The data
+
+`excel_and_png/fig-1-1.xlsx`, sheet `data`, has 10 rows, one per quarter:
+
+| category | USA | CAN | LA7 | CAPDR |
+|---|---|---|---|---|
+| 2024Q1 | 2.93 | 0.99 | 1.87 | 3.65 |
+| ... | ... | ... | ... | ... |
+
+`category` holds the quarter as text. The other columns are the four series,
+named as in the Excel legend. CAPDR has no value in the last quarter.
+
+## The script
+
+### Imports
+
+```python
+"""Figure 1.1: Real GDP Growth."""
+import numpy as np
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+```
+
+The text in triple quotes at the top is the script's *docstring*, its
+description. Then come the tools the script uses:
+
+- **numpy** (`np`) is Python's library for arrays of numbers.
+- **`MultipleLocator`** puts a tick on the axis at every multiple of a number.
+- **From `chart_style`** come the three helpers described in [The shared
+  layout](../chart-style.qmd).
+
+### The data and the colours
+
+```python
+STEM = "fig-1-1"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "USA": "#0069A6",
+    "CAN": "#444444",
+    "LA7": "#682C82",
+    "CAPDR": "#C95A0C",
+}
+```
+
+`STEM` is the chart's name, used both to find the data and to name the
+output. `data` is now a pandas DataFrame, the table shown above.
+
+`series_colours` is a *dictionary*: it maps each column name to a colour,
+written as a hex code (`#RRGGBB`, the same codes Excel shows under *More
+colours*). The colours were read from the published chart. The order of the
+entries matters, because it is the order in which the lines are drawn and
+listed in the legend.
+
+### The frame
+
+```python
+fig, ax = new_chart(
+    title="Real GDP Growth",
+    subtitle="(Year-over-year percent change)",
+    caption=(
+        "Sources: Haver Analytics; IMF, World Economic Outlook database; and\n"
+        "IMF staff calculations.\n"
+        "Note: Aggregates are purchasing-power-parity GDP-weighted average.\n"
+        "CAPDR = Central America, Panama, and the Dominican Republic; LA7 =\n"
+        "Latin America 7 (Brazil, Chile, Colombia, Mexico, Paraguay, Peru,\n"
+        "Uruguay)."
+    ),
+    title_size=13.5,
+    left=0.35,
+    right=0.2,
+    bottom_gap=0.62,
+)
+```
+
+`new_chart()` creates the 5 × 5 inch figure, writes the three texts and
+returns the figure (`fig`) and the plot area (`ax`).
+
+- **The caption** is a long text written as several pieces in brackets.
+  Python joins strings that stand next to each other, so this is one string.
+  The `\n` are the line breaks, placed exactly where the published chart has
+  them.
+- **The space around the plot**, in inches, is set by `left`, `right` and
+  `bottom_gap`. Here `bottom_gap=0.62` leaves room for the vertical quarter
+  labels. These values were tuned by comparing the result with the published
+  chart.
+
+### The lines
+
+```python
+# The quarters are categories, plotted at positions 0, 1, 2, ...
+x = np.arange(len(data))
+for series, colour in series_colours.items():
+    # A missing value (CAPDR in the last quarter) leaves a gap in the line.
+    values = data[series].astype(float)
+    ax.plot(x, values, color=colour, linewidth=1.6,
+            solid_capstyle="round", label=series)
+```
+
+The quarters are text, so they are plotted at the positions 0, 1, ..., 9 and
+labelled afterwards (see [Categories as
+positions](../techniques.qmd#sec-categories)). `len(data)` is the number of
+rows.
+
+The `for` loop runs once for each entry of the dictionary. `.items()` gives
+the pairs, so in the first round `series` is `"USA"` and `colour` is
+`"#0069A6"`. The indented lines are the body of the loop.
+
+- `data[series]` selects one column. `.astype(float)` makes sure it is
+  numeric, so that an empty cell becomes `NaN` (*not a number*). matplotlib
+  leaves a gap there instead of failing.
+- `ax.plot(x, y, ...)` draws one line. `linewidth` is in points.
+  `solid_capstyle="round"` rounds the line ends. `label` is the legend text.
+
+### The axes
+
+```python
+ax.set_xticks(x, data["category"], rotation=90)
+ax.set_xlim(-0.5, len(data) - 0.5)
+ax.tick_params(axis="x", direction="in", length=2, pad=5)
+
+ax.set_ylim(0, 5)
+ax.yaxis.set_major_locator(MultipleLocator(1))
+ax.tick_params(axis="y", direction="in", length=2, pad=6)
+```
+
+- **The x-axis.** `set_xticks(positions, labels)` puts a tick and a label at
+  each position, and `rotation=90` writes the labels vertically.
+  `set_xlim(-0.5, 9.5)` leaves half a step of space at both ends, as Excel
+  does for a category axis.
+- **The y-axis.** It runs from 0 to 5 with a tick at every whole number. This
+  matches the published chart's axis options (minimum 0, maximum 5, major
+  unit 1).
+- **The ticks.** `tick_params` makes the ticks short (2 points) and point
+  into the plot (`direction="in"`). `pad` is the gap between tick and label.
+  See [Tick marks and axis lines](../techniques.qmd#sec-ticks).
+
+### The legend and saving
+
+```python
+ax.legend(
+    loc="lower left", bbox_to_anchor=(0.01, 0.01), ncol=2,
+    handlelength=3.0, columnspacing=2.5, labelspacing=0.15,
+)
+
+save_chart(fig, STEM)
+```
+
+The legend collects every series drawn with a `label`.
+
+- **Position.** `loc="lower left"` together with `bbox_to_anchor=(0.01,
+  0.01)` puts its lower-left corner just inside the lower-left corner of the
+  plot.
+- **Layout.** `ncol=2` gives two columns. `handlelength` is the length of the
+  sample line. The other two arguments are the spacing between columns and
+  between rows. See [Legends](../techniques.qmd#sec-legends).
+
+`save_chart()` writes `python/figures/fig-1-1.png`.
+
+## Try it
+
+A few small changes to get a feel for the code:
+
+- Change `linewidth=1.6` to `2.5` and run the script again.
+- Remove `"CAN": "#444444",` from the dictionary: the Canada line and its
+  legend entry disappear.
+- Change `ncol=2` to `ncol=4` to put the legend on one row.
+
+## The complete script
+
+The full `python/fig-1-1.py`, as it runs:
+
+```` {.python filename="python/fig-1-1.py"}
+"""Figure 1.1: Real GDP Growth."""
+import numpy as np
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-1-1"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "USA": "#0069A6",
+    "CAN": "#444444",
+    "LA7": "#682C82",
+    "CAPDR": "#C95A0C",
+}
+
+fig, ax = new_chart(
+    title="Real GDP Growth",
+    subtitle="(Year-over-year percent change)",
+    caption=(
+        "Sources: Haver Analytics; IMF, World Economic Outlook database; and\n"
+        "IMF staff calculations.\n"
+        "Note: Aggregates are purchasing-power-parity GDP-weighted average.\n"
+        "CAPDR = Central America, Panama, and the Dominican Republic; LA7 =\n"
+        "Latin America 7 (Brazil, Chile, Colombia, Mexico, Paraguay, Peru,\n"
+        "Uruguay)."
+    ),
+    title_size=13.5,
+    left=0.35,
+    right=0.2,
+    bottom_gap=0.62,
+)
+
+# The quarters are categories, plotted at positions 0, 1, 2, ...
+x = np.arange(len(data))
+for series, colour in series_colours.items():
+    # A missing value (CAPDR in the last quarter) leaves a gap in the line.
+    values = data[series].astype(float)
+    ax.plot(x, values, color=colour, linewidth=1.6,
+            solid_capstyle="round", label=series)
+
+ax.set_xticks(x, data["category"], rotation=90)
+ax.set_xlim(-0.5, len(data) - 0.5)
+ax.tick_params(axis="x", direction="in", length=2, pad=5)
+
+ax.set_ylim(0, 5)
+ax.yaxis.set_major_locator(MultipleLocator(1))
+ax.tick_params(axis="y", direction="in", length=2, pad=6)
+
+ax.legend(
+    loc="lower left", bbox_to_anchor=(0.01, 0.01), ncol=2,
+    handlelength=3.0, columnspacing=2.5, labelspacing=0.15,
+)
+
+save_chart(fig, STEM)
+````

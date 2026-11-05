@@ -1,0 +1,222 @@
+---
+title: "Figure 2.1: Financial Conditions Index"
+---
+
+![Python: `python/fig-2-1.py`](../images/python/fig-2-1.png)
+
+Quarterly financial conditions indices for LA5, the United States and
+Canada. The index summarises many financial variables, such as interest
+rates, spreads, exchange rates and equity prices, into one number. Positive
+values mean tight conditions and negative values loose ones, so zero, the
+neutral level, is the key reference line.
+
+**New in this chart:**
+
+- the x-axis line at zero, with tick marks;
+- y-labels with one decimal.
+
+This page explains the axis line at zero in detail. Many later charts
+([3.1](fig-3-1.qmd), [3.3](fig-3-3.qmd), [5.2](fig-5-2.qmd),
+[10.2](fig-10-2.qmd)) use the same technique.
+
+## The data
+
+Sheet `data`, 10 rows:
+
+| category | LA5 | United States | Canada |
+|---|---|---|---|
+| 2024Q1 | 0.28 | -0.85 | 0.05 |
+
+The quarters are text, so they are plotted at positions 0, 1, 2, .... The
+values are small, between about -1 and 0.5, which is why the y-labels need a
+decimal.
+
+## The script
+
+### Colours and frame
+
+```python
+series_colours = {
+    "LA5": "#5B267A",
+    "United States": "#0066A6",
+    "Canada": "#404040",
+}
+```
+
+The usual REO colours: purple for the Latin American aggregate, blue for
+the United States, dark grey for Canada.
+
+The subtitle, `"(0 = neutral; +/– = tight/loose)"`, contains an en dash
+(`–`), not a hyphen. Python strings can hold any character, so it is typed
+as it appears in the published chart. `bottom_gap=0.62` leaves room for the
+vertical quarter labels.
+
+### The axis line at zero
+
+```python
+x = np.arange(len(data))
+
+# The x-axis is drawn at zero, with short tick marks pointing up.
+ax.axhline(0, color="black", linewidth=0.9)
+ax.vlines(x, 0, 0.035, color="black", linewidth=0.7)
+```
+
+In the published chart, the horizontal axis crosses at zero, in the middle
+of the plot, with its tick marks there, while the quarter labels are at the
+bottom. In Excel this is the combination of *Vertical axis crosses at 0* and
+*Label position: Low*.
+
+matplotlib always draws the x-axis, with its ticks and labels, at the edge
+of the plot. So the script splits the job:
+
+- the **line** at zero is drawn with `ax.axhline(0, ...)`, which spans the
+  full width of the plot;
+- the **tick marks** are drawn with `ax.vlines(x, 0, 0.035, ...)`: one short
+  vertical line at each quarter, from 0 up to 0.035;
+- the **labels** stay on the normal x-axis at the bottom (see below).
+
+The tick height (0.035) is in data units, not points. On this scale from -1
+to 0.6, it is about 2 percent of the plot height, which gives a short tick.
+If you change the y-range, check the tick height too: on a scale from -10 to
+6, 0.035 would be invisible. See [An axis line at
+zero](../techniques.qmd#sec-axis-line).
+
+### The lines
+
+```python
+for series, colour in series_colours.items():
+    ax.plot(x, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="butt", label=series)
+```
+
+`solid_capstyle="butt"` ends the lines exactly at the first and last point.
+Most charts in this book use round ends, but here the x-axis starts and ends
+exactly at the first and last quarter (see the limits below). A round end
+extends half a line width beyond the point, so it would stick out past the
+edge of the plot. See [Line styles](../techniques.qmd#sec-line-styles).
+
+### The x-axis
+
+```python
+ax.set_xticks(x, data["category"], rotation=90)
+ax.set_xlim(0, len(data) - 1)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=7)
+```
+
+- **The labels** are the quarter names, under each position, written
+  vertically.
+- **The limits** are exactly the first and last positions, 0 and 9, so the
+  lines run from edge to edge.
+- **The bottom spine is hidden.** A *spine* is matplotlib's name for the
+  lines around the plot area. The house style already hides the top and
+  right ones; here the bottom one goes too, because the axis line is now the
+  one at zero.
+- **No tick marks at the bottom** (`length=0`). The quarter labels remain,
+  7 points below the bottom of the plot (`pad=7`).
+
+### The y-axis
+
+```python
+ax.set_ylim(-1, 0.6)
+ax.yaxis.set_major_locator(MultipleLocator(0.2))
+ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+ax.tick_params(axis="y", length=2.8, pad=5)
+```
+
+The y-axis runs from -1 to 0.6 with a tick every 0.2. Zero is one of the
+ticks, so the axis line at zero lines up with a label.
+
+`FormatStrFormatter("%.1f")` writes every label with exactly one decimal:
+-1.0, -0.8, ..., 0.6. `%.1f` means "a number with one digit after the
+decimal point", like the Excel number format `0.0`. With a tick every 0.2,
+matplotlib would choose one decimal anyway, but its automatic format depends
+on the scale. Setting it makes sure the labels stay in the published format
+whatever the data. See [Number formats](../techniques.qmd#sec-number-formats).
+
+### The legend
+
+```python
+ax.legend(loc="center left", bbox_to_anchor=(0.05, 0.49),
+          handlelength=2.9, labelspacing=0.15)
+```
+
+The legend is anchored by its left middle (`"center left"`): the middle of
+its left edge is put at 5 percent from the left and 49 percent from the
+bottom of the plot. That is slightly below the middle, in the gap between
+the lines above and below zero. Anchoring by the centre rather than a corner
+keeps the legend in that gap even if you add or remove an entry. See
+[Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **Ticks pointing down** instead of up, as in [Figure 3.3](fig-3-3.qmd):
+  `ax.vlines(x, -0.035, 0, ...)`.
+- **A wider y-range.** If new data go below -1, use for example
+  `ax.set_ylim(-1.4, 0.6)`. Keep zero on a tick and adjust the tick height
+  if the range grows a lot.
+- **Round line ends.** If you add half a step of margin,
+  `ax.set_xlim(-0.5, len(data) - 0.5)`, round ends no longer stick out and
+  you can use `solid_capstyle="round"`.
+
+## The complete script
+
+The full `python/fig-2-1.py`, as it runs:
+
+```` {.python filename="python/fig-2-1.py"}
+"""Figure 2.1: Financial Conditions Index."""
+import numpy as np
+from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-2-1"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "LA5": "#5B267A",
+    "United States": "#0066A6",
+    "Canada": "#404040",
+}
+
+fig, ax = new_chart(
+    title="Financial Conditions Index",
+    subtitle="(0 = neutral; +/– = tight/loose)",
+    caption=(
+        "Source: IMF staff calculations.\n"
+        "Note: For methodology and variables included in the financial conditions\n"
+        "index, refer to the online annex of the October 2018 Global Financial\n"
+        "Stability Report. LA5 is purchasing-power-parity GDP-weighted averages.\n"
+        "LA5 = Latin America 5 (Brazil, Chile, Colombia, Mexico, Peru)."
+    ),
+    left=0.4,
+    right=0.15,
+    bottom_gap=0.62,
+)
+
+x = np.arange(len(data))
+
+# The x-axis is drawn at zero, with short tick marks pointing up.
+ax.axhline(0, color="black", linewidth=0.9)
+ax.vlines(x, 0, 0.035, color="black", linewidth=0.7)
+
+for series, colour in series_colours.items():
+    ax.plot(x, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="butt", label=series)
+
+ax.set_xticks(x, data["category"], rotation=90)
+ax.set_xlim(0, len(data) - 1)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=7)
+
+ax.set_ylim(-1, 0.6)
+ax.yaxis.set_major_locator(MultipleLocator(0.2))
+ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+ax.tick_params(axis="y", length=2.8, pad=5)
+
+ax.legend(loc="center left", bbox_to_anchor=(0.05, 0.49),
+          handlelength=2.9, labelspacing=0.15)
+
+save_chart(fig, STEM)
+````

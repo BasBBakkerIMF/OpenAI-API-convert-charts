@@ -1,0 +1,440 @@
+---
+title: "Recurring techniques"
+---
+
+The same building blocks come back in many charts. This chapter explains
+each of them once, and the chart pages link here. You can read it straight
+through, or look things up when a chart page sends you here.
+
+## Plotting functions you will meet
+
+| Call | Draws |
+|---|---|
+| `ax.plot(x, y)` | A line (or, with `marker=` and `linestyle="none"`, markers only) |
+| `ax.bar(x, heights)` | Vertical bars |
+| `ax.scatter(x, y)` | Dots |
+| `ax.fill_between(x, lower, upper)` | A shaded area between two lines |
+| `ax.axhline(y)` / `ax.axvline(x)` | A horizontal / vertical line across the whole plot |
+| `ax.hlines(y, x0, x1)` / `ax.vlines(x, y0, y1)` | Short horizontal / vertical line pieces |
+| `ax.text(x, y, "text")` | Text |
+| `ax.annotate("text", xy=..., xytext=...)` | Text with a line or arrow pointing at something |
+| `ax.legend(...)` | The legend |
+
+Most functions take the same styling arguments:
+
+- `color=` takes a hex code such as `"#0067A5"` or a name such as `"black"`.
+- `linewidth=` is in points.
+- `label=` is the name shown in the legend.
+- `zorder=` sets what is drawn on top of what (higher is on top).
+
+## Categories as positions {#sec-categories}
+
+When the x-axis shows text, such as quarters (`2024Q1`) or country names,
+Excel spaces the categories evenly. The scripts do the same by plotting
+against the positions 0, 1, 2, ... and then putting the text under those
+positions:
+
+```python
+x = np.arange(len(data))                         # 0, 1, 2, ..., one per row
+ax.plot(x, data["USA"])
+ax.set_xticks(x, data["category"], rotation=90)  # a label under each position
+ax.set_xlim(-0.5, len(data) - 0.5)               # half a step of room at each end
+```
+
+`np.arange(n)` is numpy's version of 0, 1, ..., n-1. `rotation=90` turns the
+labels vertical, as in many REO charts.
+
+For bar charts, the first bar is often at 1 instead of 0 (`np.arange(1,
+len(data) + 1)`). That makes the positions of separators between bars easy
+to write down: 0.5, 1.5, 2.5 and so on.
+
+**Years** are numbers, so charts with annual data plot against the years
+themselves (`ax.plot(data["category"], ...)`). The limits are then years too,
+e.g. `ax.set_xlim(2018.5, 2026.5)`.
+
+Used in: [1.1](charts/fig-1-1.qmd), [2.1](charts/fig-2-1.qmd),
+[2.4](charts/fig-2-4.qmd), [3.3](charts/fig-3-3.qmd),
+[5.2](charts/fig-5-2.qmd) and all bar charts.
+
+## Dates on the x-axis {#sec-dates}
+
+Daily and monthly data come in as real dates. matplotlib places them on a
+time axis, so gaps and uneven spacing are handled correctly:
+
+```python
+import matplotlib.dates as mdates
+import pandas as pd
+
+START, END = pd.Timestamp("2024-01-01"), pd.Timestamp("2026-09-30")
+data = data[(data["category"] >= START) & (data["category"] <= END)]   # keep the shown period
+
+ax.set_xlim(START, END)
+ax.set_xticks(pd.date_range(START, "2026-07-01", freq="6MS"))       # a tick every 6 months
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))         # "Jan-24"
+```
+
+- **Keeping rows.** `data[condition]` keeps the rows where the condition is
+  true. Conditions are combined with `&` (and), each in brackets. The
+  extracted workbooks often hold much more history than the chart shows: the
+  daily data in [2.2](charts/fig-2-2.qmd) start in 2010.
+- **Tick dates.** `pd.date_range(start, end, freq=...)` makes the tick dates.
+  `"MS"` means *month start*, so `"6MS"` is every six months and `"2MS"`
+  every two.
+- **Labels.** `DateFormatter("%b-%y")` writes each date as abbreviated month
+  and two-digit year, as Excel does with the format `mmm-yy`.
+- **Text dates.** If dates are stored as text, `pd.to_datetime(...)` converts
+  them.
+- **Shifting a date.** Use `pd.Timedelta(days=12)`, for example to place a
+  label just left of a vertical line.
+
+Used in: [1.2.1](charts/fig-1-2-1.qmd), [1.2.2](charts/fig-1-2-2.qmd),
+[2.2](charts/fig-2-2.qmd), [3.2](charts/fig-3-2.qmd),
+[3.4](charts/fig-3-4.qmd), [6.1](charts/fig-6-1.qmd).
+
+## Tick marks and axis lines {#sec-ticks}
+
+```python
+ax.tick_params(axis="y", direction="in", length=2.3, pad=6)
+```
+
+`tick_params` sets the look of the tick marks and their labels:
+
+- `direction="in"` makes the ticks point into the plot, as Excel's default
+  does.
+- `length` is the length of the ticks, in points. `length=0` hides them but
+  keeps the labels.
+- `pad` is the gap between the tick and its label.
+- `labelsize` is the font size of the labels.
+- `labelrotation` turns the labels.
+
+The axis lines themselves are *spines*. `ax.spines["bottom"].set_visible(False)`
+hides the bottom one, which is usually done when an axis line is drawn
+elsewhere, at zero (next section).
+
+## An axis line at zero, with tick marks {#sec-axis-line}
+
+When a chart has negative values, Excel draws the horizontal axis *at zero*,
+with its tick marks there, while the labels stay at the bottom of the chart.
+matplotlib has no such option, so the scripts build it from three pieces:
+
+```python
+ax.axhline(0, color="black", linewidth=0.9)              # the axis line at zero
+ax.vlines(x, 0, 0.035, color="black", linewidth=0.7)     # short ticks pointing up
+ax.spines["bottom"].set_visible(False)                   # no line at the bottom
+ax.tick_params(axis="x", length=0, pad=7)                # labels at the bottom, no ticks
+```
+
+`ax.vlines(x, 0, 0.035)` draws a vertical line from 0 to 0.035 *in data
+units* at each position in `x`. The tick length is therefore set in the
+units of the y-axis. On a scale from -1 to 0.6 a tick of 0.035 is short, but
+on a scale from -15 to 15 you need around 0.5. Ticks pointing down go from a
+small negative number to 0: `ax.vlines(x, -0.12, 0)`.
+
+The same trick works at any level: [3.1](charts/fig-3-1.qmd) draws its axis
+line at 100. [6.2](charts/fig-6-2.qmd) does the same for the y-axis, a
+vertical line at zero with horizontal ticks.
+
+Used in: [1.1.2](charts/fig-1-1-2.qmd), [1.2.3](charts/fig-1-2-3.qmd),
+[2.1](charts/fig-2-1.qmd), [3.1](charts/fig-3-1.qmd),
+[3.3](charts/fig-3-3.qmd), [5.2](charts/fig-5-2.qmd),
+[8](charts/fig-8-0.qmd), [10.2](charts/fig-10-2.qmd),
+[11.1](charts/fig-11-1.qmd), [11.2](charts/fig-11-2.qmd).
+
+## A right-hand scale {#sec-right-scale}
+
+A series whose name ends in "(right scale)" is drawn on a second y-axis. The
+second axis is a twin of the first: it shares the x-axis, and has its own
+y-axis on the right.
+
+```python
+ax_right = add_right_axis(ax, (100, 220), 30)     # from chart_style
+ax_right.plot(dates, data["Gold (right scale)"], color="#FFA500")
+```
+
+There are two things to watch for.
+
+**The legend.** Each axes object keeps its own list of labelled series, so
+`ax.legend()` would only list the left-scale series. The scripts therefore
+build the legend entries by hand. They make one short sample line
+(`Line2D`) per series and pass them with their names:
+
+```python
+from matplotlib.lines import Line2D
+
+styles = {**left_series, usa: usa_colour}          # all series, in legend order
+ax_right.legend([Line2D([], [], color=c, linewidth=1.8) for c in styles.values()],
+                list(styles))
+```
+
+`{**a, key: value}` builds a new dictionary from all entries of `a` plus one
+more. The legend is put on `ax_right` because that axes object is drawn on
+top, so nothing covers the legend.
+
+**Drawing order.** The twin axes object lies on top of the original, so
+right-scale series cover left-scale ones. If the left-scale series should be
+on top, as in [3.2](charts/fig-3-2.qmd), swap the layers. The left axes
+object also has to be made transparent, or it would hide the right one:
+
+```python
+ax.set_zorder(ax_right.get_zorder() + 1)
+ax.patch.set_visible(False)        # the left plot area's white background
+```
+
+Used in: [1.1.1](charts/fig-1-1-1.qmd), [1.2.1](charts/fig-1-2-1.qmd),
+[1.3.1](charts/fig-1-3-1.qmd), [3.2](charts/fig-3-2.qmd),
+[3.4](charts/fig-3-4.qmd), [5.1](charts/fig-5-1.qmd),
+[7.1](charts/fig-7-1.qmd), [10.1](charts/fig-10-1.qmd),
+[13](charts/fig-13-0.qmd), [14.1](charts/fig-14-1.qmd).
+
+## Stacked bars {#sec-stacked}
+
+`ax.bar()` draws each bar from 0 unless you pass `bottom=`. For stacked bars,
+each series starts where the previous ones end. A running total takes care
+of that:
+
+```python
+bottom = np.zeros(len(data))                 # start at zero
+for series, colour in stack_colours.items():  # from the bottom of the stack up
+    ax.bar(x, data[series], bottom=bottom, color=colour, label=series)
+    bottom += data[series].to_numpy()         # the next series starts on top
+```
+
+The order of the dictionary is the stacking order, from the bottom up. To
+match the published chart, compare its colours from bottom to top.
+
+`.to_numpy()` turns the pandas column into a plain numpy array before it is
+added. pandas would otherwise try to line the values up by row label.
+
+This works for stacks of positive values. With negative values the two
+programs differ:
+
+- **matplotlib** draws a negative value downwards from the top of the stack
+  so far.
+- **Excel** stacks negative values separately, downwards from zero.
+
+[9.1](charts/fig-9-1.qmd) shows how this is handled.
+
+Used in: [1.2.1](charts/fig-1-2-1.qmd), [2.3](charts/fig-2-3.qmd),
+[7.2](charts/fig-7-2.qmd), [9.1](charts/fig-9-1.qmd),
+[16.2](charts/fig-16-2.qmd).
+
+## Grouped bars {#sec-grouped}
+
+For bars side by side, each series is shifted a little to the left or right
+of the category position:
+
+```python
+bar_width = 0.82 / len(years)                          # the group takes 0.82 of a step
+for i, year in enumerate(years):
+    offset = (i - (len(years) - 1) / 2) * bar_width    # for three series: -1, 0, +1 bar widths
+    ax.bar(x + offset, data[year], width=bar_width, color=year_colours[year], label=year)
+```
+
+`enumerate()` gives each item together with its number (0, 1, 2, ...). The
+offset centres the group on the category position, whatever the number of
+series.
+
+Used in: [1.1.1](charts/fig-1-1-1.qmd), [3.3](charts/fig-3-3.qmd).
+
+## Shaded bands from Excel's helper series {#sec-bands}
+
+Excel cannot shade the area between two lines directly. Chart makers work
+around this with a *stacked area* chart:
+
+1. An invisible area goes from zero up to the lower edge of the band.
+2. A coloured area is stacked on top of it, with a height equal to the width
+   of the band.
+
+The extracted data contain these helper series exactly as they are in the
+Excel file. Their names are things like `Min` and `Min-Max Band`, `ci_lo`
+and `range`, or `Dummy1` to `Dummy4`. The band edges are found by adding
+them up, and `fill_between` shades the area between the edges:
+
+```python
+band_lower = data["Min"]
+band_upper = data["Min"] + data["Min-Max Band"]
+ax.fill_between(dates, band_lower, band_upper, color="#FCE5D6", linewidth=0)
+```
+
+With two bands, as in [1.1.2](charts/fig-1-1-2.qmd) and
+[8](charts/fig-8-0.qmd), there are four helper series:
+
+- the invisible base (`Dummy1`);
+- the first band (`Dummy2`);
+- an invisible gap (`Dummy3`);
+- the second band (`Dummy4`).
+
+The edges are running totals of these.
+
+`linewidth=0` removes the outline that `fill_between` draws by default.
+`alpha=` (between 0 and 1) makes a band partly transparent, so overlapping
+bands show through.
+
+Used in: [1.1.2](charts/fig-1-1-2.qmd), [1.2.2](charts/fig-1-2-2.qmd),
+[1.2.3](charts/fig-1-2-3.qmd), [8](charts/fig-8-0.qmd),
+[14.1](charts/fig-14-1.qmd), [15.2](charts/fig-15-2.qmd).
+
+## Legends {#sec-legends}
+
+**The simple case.** Give each series a `label=` when you draw it, then call
+`ax.legend()`.
+
+**Position.** `loc` names the corner of the legend that is anchored.
+`bbox_to_anchor` gives the anchor point as fractions of the plot area, where
+(0, 0) is bottom left and (1, 1) top right:
+
+```python
+ax.legend(loc="upper left", bbox_to_anchor=(0.05, 0.98))   # top-left corner near the top left
+```
+
+**Layout.** These arguments, all in units of the font size, control the
+spacing:
+
+| Argument | Sets |
+|---|---|
+| `ncol` | The number of columns |
+| `handlelength`, `handleheight` | The size of the sample line or box |
+| `handletextpad` | The gap between the sample and the text |
+| `labelspacing` | The gap between rows |
+| `columnspacing` | The gap between columns |
+
+**Hand-made entries.** When the legend should show something other than
+what was drawn, make the sample symbols yourself and pass them with the
+names. Examples are a right-hand scale, a box for a bar series, or a symbol
+with no fill:
+
+```python
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+
+handles = [Patch(color="#0065A8"),                                   # a filled box
+           Line2D([], [], color="black", linewidth=1.8),             # a line
+           Line2D([], [], linestyle="none", marker="o", color="black")]  # a dot
+ax.legend(handles, ["Labor", "Financing premium", "Real GDP growth"])
+```
+
+**Order in several columns.** matplotlib fills a multi-column legend *column
+by column*, while Excel fills it *row by row*. To get Excel's order, reorder
+the entries before passing them in. [2.3](charts/fig-2-3.qmd) and
+[6.1](charts/fig-6-1.qmd) show how.
+
+## Text, arrows and coordinates {#sec-text}
+
+`ax.text(x, y, "label")` places text at a point given *in data units*: on a
+date axis, x is a date. The alignment arguments `ha` (`"left"`, `"center"`,
+`"right"`) and `va` (`"top"`, `"center"`, `"bottom"`) say which point of the
+text sits at (x, y). Text can be styled with `fontsize`, `fontstyle="italic"`,
+`fontweight="bold"` and `color`. A line break is `\n`.
+
+Sometimes data units are not what you want. Then pass a different
+`transform`, the coordinate system of the position:
+
+| `transform=` | x is | y is | Typical use |
+|---|---|---|---|
+| *(none)* | data | data | A label next to a point or line |
+| `ax.transAxes` | 0–1 across the plot | 0–1 up the plot | A panel title just above the plot |
+| `ax.get_xaxis_transform()` | data | 0–1 up the plot | Labels **below** the x-axis, under a category |
+| `ax.get_yaxis_transform()` | 0–1 across the plot | data | Marks on the y-axis line |
+
+With `get_xaxis_transform()`, y = 0 is the bottom of the plot and negative
+values are below it. That is how labels and separators are placed under the
+axis. Such elements need `clip_on=False`, because by default matplotlib
+cuts off anything outside the plot area.
+
+`ax.annotate()` draws text with a connecting line:
+
+```python
+ax.annotate("Jan-Sep", xy=(x0, y0), xytext=(x1, y1),
+            arrowprops=dict(arrowstyle="-", color="#A6A6A6"))
+```
+
+`xy` is the point the line points at and `xytext` is where the text goes.
+`arrowstyle="-"` gives a plain line and `"-|>"` a filled arrowhead. With
+empty text (`""`), `annotate` simply draws an arrow, as in
+[11.1](charts/fig-11-1.qmd).
+
+## Tables of labels below the plot {#sec-label-tables}
+
+Several REO charts have two or three rows of category labels under the bars,
+separated by vertical lines. For example, a row of country groups with
+"Growth" and "Inflation" below. Excel produces these with multi-level
+categories. The scripts draw them with the coordinates from the previous
+section:
+
+```python
+trans = ax.get_xaxis_transform()
+for xi in np.arange(0.5, 11, 1):                                # between all bars
+    depth = -0.16 if xi in (0.5, 2.5, 4.5, 6.5, 8.5, 10.5) else -0.07
+    ax.plot([xi, xi], [0, depth], color="black", linewidth=0.6,
+            transform=trans, clip_on=False)                     # separator lines
+for centre, year in zip(np.arange(1.5, 10, 2), years):
+    ax.text(centre, -0.12, year, ha="center", va="center", transform=trans)
+```
+
+- **Separators.** The lines between groups are longer than the lines between
+  bars, so they reach down to the second row.
+- **Room.** The labels need space under the plot. That space is made with a
+  larger `bottom_gap` in `new_chart()`.
+- **Typed labels.** In several of these charts the labels are not in the
+  extracted data and are typed into the script.
+- **`zip()`.** It walks through two lists side by side: the first centre
+  with the first year, and so on.
+
+Used in: [7.2](charts/fig-7-2.qmd), [9.1](charts/fig-9-1.qmd),
+[10.1](charts/fig-10-1.qmd), [12.1](charts/fig-12-1.qmd),
+[13](charts/fig-13-0.qmd), [14.2](charts/fig-14-2.qmd).
+
+## Several panels {#sec-panels}
+
+Charts with two panels side by side ask `new_chart()` for two plot areas.
+They describe each panel by its settings in a list, and draw both in one
+loop:
+
+```python
+panels = [
+    ("datal", "Ten-year Bond Yields", ...),    # left panel
+    ("datar", "Sovereign Spreads", ...),       # right panel
+]
+fig, axes = new_chart(..., ncols=2, wspace=0.45)
+
+for ax, (sheet, title, ...) in zip(axes, panels):
+    data = read_chart_data(STEM, sheet)
+    ...                                         # the same drawing code for both panels
+```
+
+Each panel has its own sheet in the workbook (`datal`, `datar`). Writing the
+drawing code once guarantees the two panels look alike. Whatever differs
+(sheet, titles, scales, colours) is in the `panels` list.
+
+Used in: [1.3.1](charts/fig-1-3-1.qmd), [2.2](charts/fig-2-2.qmd),
+[7.2](charts/fig-7-2.qmd), [14.2](charts/fig-14-2.qmd).
+
+## Line styles {#sec-line-styles}
+
+- **Dashes.** `linestyle=(0, (1, 1.5))` is a dotted line and `(0, (5, 2))` a
+  dashed one. The pairs are the lengths of dash and gap, in multiples of the
+  line width. The leading 0 is the offset at which the pattern starts.
+- **Line ends.** `solid_capstyle="round"` rounds the ends of a line, which
+  looks closer to Excel's thick lines. `"butt"` ends the line exactly at the
+  last point.
+- **Corners.** `solid_joinstyle="round"` rounds the corners where a line
+  changes direction.
+- **Gaps.** A missing value (`NaN`) in the data leaves a gap in the line, as
+  in Excel.
+
+## Number formats and tick spacing {#sec-number-formats}
+
+```python
+from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+
+ax.yaxis.set_major_locator(MultipleLocator(0.2))              # a tick every 0.2
+ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))       # one decimal: 0.0, 0.2, ...
+ax.yaxis.set_major_formatter("{x:.1f}")                        # the same, newer style
+```
+
+- **Tick spacing.** `MultipleLocator(step)` puts a tick at every multiple of
+  `step` within the axis limits. `set_y_scale()` from `chart_style` does the
+  same with explicit tick positions.
+- **Decimals.** By default matplotlib shows as many decimals as needed. Many
+  REO axes show a fixed number, such as 0.0, 0.2 and 0.4, and the formatter
+  sets that. `".1f"` means one decimal place.

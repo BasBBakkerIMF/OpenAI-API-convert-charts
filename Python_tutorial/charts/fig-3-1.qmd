@@ -1,0 +1,198 @@
+---
+title: "Figure 3.1: Terms of Trade"
+---
+
+![Python: `python/fig-3-1.py`](../images/python/fig-3-1.png)
+
+Annual terms-of-trade indices for five economies, with 2019 = 100. The terms
+of trade are the price of a country's exports relative to the price of its
+imports. Above 100 means that exports buy more imports than in 2019; below
+100, fewer. All five lines therefore start at the same point, and the chart
+is about how far they move apart.
+
+**New in this chart:**
+
+- years used directly as x-values;
+- an axis line at 100 instead of zero.
+
+## The data
+
+Sheet `data`, 8 rows (2019 to 2026):
+
+| category | USA | CAN | LA7 | CAPDR | CARIB |
+|---|---|---|---|---|---|
+| 2019 | 100 | 100 | 100 | 100 | 100 |
+
+The first row is 100 for every series, as it should be for an index with
+2019 as its base year. Checking this is a quick test that the right data
+were extracted.
+
+## The script
+
+### The colours and the frame
+
+```python
+series_colours = {
+    "USA": "#0067A5",
+    "CAN": "#454545",
+    "LA7": "#5C277E",
+    "CAPDR": "#D26717",
+    "CARIB": "#00A3A3",
+}
+```
+
+One entry per line, in drawing and legend order. The colours follow the
+REO's usual assignment: blue for the United States, dark grey for Canada,
+purple for LA7, orange for CAPDR and teal for the Caribbean. The same
+colours appear for these groups throughout the book.
+
+`new_chart()` is called with `caption_size=8.4`, slightly below the default,
+so the longest caption line fits.
+
+### An axis line at 100
+
+```python
+years = data["category"]
+
+# The x-axis is drawn at 100, with short tick marks pointing up.
+ax.axhline(100, color="#222222", linewidth=0.7)
+ax.vlines(years, 100, 100.45, color="#222222", linewidth=0.6)
+```
+
+For an index, the base value plays the role that zero plays for a growth
+rate: it separates "better than in 2019" from "worse". In Excel, the axis
+option *Horizontal axis crosses at 100* draws the axis line there, with its
+tick marks, while the y-scale starts lower, at 90.
+
+matplotlib has no such option, so the script draws the line and its tick
+marks itself:
+
+- `ax.axhline(100, ...)` draws a horizontal line across the whole plot at
+  y = 100. Unlike `ax.plot()`, it needs no x-values: it always spans the
+  full width, whatever the x-limits.
+- `ax.vlines(x, ymin, ymax, ...)` draws vertical lines. Here it draws one
+  short line at each year, from 100 to 100.45. These are the tick marks.
+  Their length is in data units (0.45 index points), which on this scale
+  comes out at about the length of the normal tick marks.
+
+Both are drawn before the series lines, so the series lie on top of them.
+See [An axis line at zero, with tick
+marks](../techniques.qmd#sec-axis-line).
+
+### The lines and the x-axis
+
+```python
+for series, colour in series_colours.items():
+    ax.plot(years, data[series], color=colour, linewidth=1.7,
+            solid_capstyle="round", solid_joinstyle="round", label=series)
+
+ax.set_xlim(2018.5, 2026.5)
+ax.set_xticks(years)
+ax.tick_params(axis="x", length=2.3, pad=5)
+```
+
+The years are numbers, so they are plotted directly. There is no need for
+positions 0, 1, 2, ... as in [Figure 1.1](fig-1-1.qmd), where the
+categories are text such as "2023Q1".
+
+- **Rounded lines.** `solid_capstyle="round"` and
+  `solid_joinstyle="round"` round the ends and the corners of the lines.
+  Five lines starting from the same point look cleaner that way. See [Line
+  styles](../techniques.qmd#sec-line-styles).
+- **The limits** are half a year beyond the first and last year, as Excel
+  leaves for a category axis.
+- **Every year gets a label**, because `ax.set_xticks(years)` puts a tick at
+  each value of the column. With eight years there is room for all of them.
+
+### The y-axis and the legend
+
+```python
+ax.set_ylim(90, 125)
+ax.yaxis.set_major_locator(MultipleLocator(5))
+ax.tick_params(axis="y", length=2.3, pad=5)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.03, 0.99), fontsize=9.5,
+          handlelength=3.0, labelspacing=0.1)
+```
+
+The y-axis runs from 90 to 125 with a tick every 5. `MultipleLocator(5)`
+puts a tick at every multiple of 5, like Excel's *major unit*. See [Number
+formats and tick spacing](../techniques.qmd#sec-number-formats).
+
+The legend sits in the top-left corner, above the lines. It uses a slightly
+larger font (9.5 instead of 9 points) and close line spacing
+(`labelspacing=0.1`), so five entries fit in the space above the lines. See
+[Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **A different base year.** If the next edition uses 2020 = 100, change the
+  subtitle. The axis line stays at 100, because the base value is still
+  100, but check the y-limits, since the lines will move.
+- **An index with no special line.** Delete the `axhline` and `vlines`
+  calls. The x-axis is then the bottom edge of the plot, at 90.
+- **More years.** Once there are more than about ten, label every second
+  year: `ax.set_xticks(years[::2])`.
+
+## The complete script
+
+The full `python/fig-3-1.py`, as it runs:
+
+```` {.python filename="python/fig-3-1.py"}
+"""Figure 3.1: Terms of Trade."""
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-3-1"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "USA": "#0067A5",
+    "CAN": "#454545",
+    "LA7": "#5C277E",
+    "CAPDR": "#D26717",
+    "CARIB": "#00A3A3",
+}
+
+fig, ax = new_chart(
+    title="Terms of Trade",
+    subtitle="(Index: 2019 = 100)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Aggregates are purchasing-power-parity GDP-weighted averages.\n"
+        "CAPDR = Central America, Panama, and the Dominican Republic; CARIB\n"
+        "= Caribbean; LA7 = Latin America 7 (Brazil, Chile, Colombia, Mexico,\n"
+        "Paraguay, Peru, Uruguay)."
+    ),
+    caption_size=8.4,
+    left=0.4,
+    right=0.15,
+    bottom_gap=0.35,
+)
+
+years = data["category"]
+
+# The x-axis is drawn at 100, with short tick marks pointing up.
+ax.axhline(100, color="#222222", linewidth=0.7)
+ax.vlines(years, 100, 100.45, color="#222222", linewidth=0.6)
+
+for series, colour in series_colours.items():
+    ax.plot(years, data[series], color=colour, linewidth=1.7,
+            solid_capstyle="round", solid_joinstyle="round", label=series)
+
+ax.set_xlim(2018.5, 2026.5)
+ax.set_xticks(years)
+ax.tick_params(axis="x", length=2.3, pad=5)
+
+ax.set_ylim(90, 125)
+ax.yaxis.set_major_locator(MultipleLocator(5))
+ax.tick_params(axis="y", length=2.3, pad=5)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.03, 0.99), fontsize=9.5,
+          handlelength=3.0, labelspacing=0.1)
+
+save_chart(fig, STEM)
+````

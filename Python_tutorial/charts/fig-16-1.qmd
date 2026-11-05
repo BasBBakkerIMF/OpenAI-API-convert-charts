@@ -1,0 +1,204 @@
+---
+title: "Figure 16.1: LAC: Share of FDI Global Greenfield Investment"
+---
+
+![Python: `python/fig-16-1.py`](../images/python/fig-16-1.png)
+
+The region's share of global greenfield FDI, measured in two ways: by
+capital expenditure (how much money is announced) and by number of projects
+(how many investments are announced). Both are three-year trailing moving
+averages, so each point is the average of that year and the two before it.
+The moving average is already in the data; the script draws the numbers as
+they are.
+
+This is about as plain as a line chart gets: two series, annual data, one
+y-axis, a legend. It is a good page to read after
+[Figure 1.1](fig-1-1.qmd) to check that you can follow a whole script on your
+own.
+
+**New in this chart:** a subtitle on two lines.
+
+## The data
+
+Sheet `data`, 21 rows (2005 to 2025):
+
+| category | Capital expenditure | Project-count |
+|---|---|---|
+| 2005 | 8.35 | 5.59 |
+
+The `category` column holds the years as numbers (2005, 2006, ...), not as
+text. That matters: matplotlib can then place them on a numeric x-axis, so
+you can set the axis limits in years and choose which years get a label.
+Compare [Figure 2.4](fig-2-4.qmd), where the categories are quarters such as
+`2022Q1` and must be plotted at positions 0, 1, 2, ... instead.
+
+## The script
+
+### The colours
+
+```python
+series_colours = {"Capital expenditure": "#0066A6", "Project-count": "#C8580A"}
+```
+
+A dictionary that links each column name to its colour. The colours are
+written as hexadecimal codes, the same codes Excel shows under *More colours
+→ Custom → Hex*. Using the column names as keys means the loop below can
+read both the data and the colour from the same entry, and the legend labels
+come out as the column names.
+
+### The frame and a two-line subtitle
+
+```python
+fig, ax = new_chart(
+    title="LAC: Share of FDI Global Greenfield Investment",
+    subtitle="(Percent of world total; three-year trailing moving\naverage)",
+    caption=(
+        "Sources: Orbis Crossborder Investment (OCBI) database; and IMF staff\n"
+        "calculations.\n"
+        ...
+    ),
+    left=0.35,
+    right=0.15,
+    bottom_gap=0.3,
+)
+```
+
+The subtitle is too long for one line, so it contains a `\n`, Python's code
+for a line break. The break is placed where the published chart breaks the
+line, after "moving".
+
+You do not have to make room for the second line yourself. `new_chart()`
+counts the `\n` in the title and subtitle and moves the top of the plot down
+by one line height for each. The same goes for the caption at the bottom,
+which here has six lines: the plot simply starts higher. See [The shared
+layout](../chart-style.qmd#sec-new-chart).
+
+The three spacing arguments are in inches:
+
+- `left=0.35` leaves room for the y-axis labels (at most two digits here);
+- `right=0.15` is a small margin on the right, since there is no right-hand
+  scale;
+- `bottom_gap=0.3` is the space between the caption and the x-axis, enough
+  for the year labels.
+
+### The lines
+
+```python
+for series, colour in series_colours.items():
+    ax.plot(data["category"], data[series], color=colour, linewidth=1.9,
+            solid_capstyle="round", label=series)
+```
+
+The loop runs twice, once per entry in `series_colours`. Each time,
+`ax.plot()` draws one line: the years on the x-axis, the column `series` on
+the y-axis.
+
+- `linewidth=1.9` is in points, like Excel's line width.
+- `solid_capstyle="round"` gives the line rounded ends, as Excel does. The
+  matplotlib default is a square end. See [Line
+  styles](../techniques.qmd#sec-line-styles).
+- `label=series` stores the name for the legend. Without it,
+  `ax.legend()` would have nothing to show.
+
+### The x-axis
+
+```python
+ax.set_xlim(2004.5, 2025.5)
+ax.set_xticks(range(2005, 2026, 5))
+ax.tick_params(axis="x", length=2.8, pad=5)
+```
+
+- **The limits** start half a year before the first point and end half a
+  year after the last. The lines then do not touch the edges of the plot.
+- **The labels.** `range(2005, 2026, 5)` gives 2005, 2010, 2015, 2020, 2025.
+  In Python, a range stops *before* its end value, so the end is 2026 to
+  include 2025. Only these years get a tick mark and a label.
+- **The tick marks** are 2.8 points long, and `pad=5` puts 5 points between
+  the tick and its label. See [Tick marks and axis
+  lines](../techniques.qmd#sec-ticks).
+
+### The y-axis and the legend
+
+```python
+set_y_scale(ax, 4, 16, 2)
+ax.tick_params(axis="y", length=2.8)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.04, 0.98), handlelength=3.0,
+          labelspacing=0.15)
+```
+
+`set_y_scale(ax, 4, 16, 2)` is the shared helper for a y-axis from 4 to 16
+with a tick every 2 (4, 6, ..., 16), the equivalent of setting minimum,
+maximum and major unit in Excel's *Format Axis* pane. See [The
+y-scale](../chart-style.qmd#sec-y-scale).
+
+The legend is placed by its top-left corner (`loc="upper left"`) at the
+point `bbox_to_anchor=(0.04, 0.98)`. These numbers are fractions of the plot
+area: 4 percent from the left, 2 percent below the top. Two other arguments
+tune its look:
+
+- `handlelength=3.0` makes the line sample in the legend three font sizes
+  long, a little longer than the default, as in the published chart;
+- `labelspacing=0.15` puts the two entries close together.
+
+See [Legends](../techniques.qmd#sec-legends).
+
+The script ends with `save_chart(fig, STEM)`, which writes
+`python/figures/fig-16-1.png`.
+
+## Changing the chart
+
+- **A new data year.** If the next edition adds 2026, extend the x-limits to
+  `2025.5 → 2026.5` and, if you want 2026 labelled, the range to
+  `range(2006, 2027, 5)` or another set of years.
+- **A third series.** Add a column name and colour to `series_colours`. The
+  loop and the legend pick it up automatically.
+- **A one-line subtitle.** Remove the `\n`. The plot grows by one line
+  height without any other change.
+
+## The complete script
+
+The full `python/fig-16-1.py`, as it runs:
+
+```` {.python filename="python/fig-16-1.py"}
+"""Figure 16.1: LAC: Share of FDI Global Greenfield Investment."""
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-16-1"
+
+data = read_chart_data(STEM)
+
+series_colours = {"Capital expenditure": "#0066A6", "Project-count": "#C8580A"}
+
+fig, ax = new_chart(
+    title="LAC: Share of FDI Global Greenfield Investment",
+    subtitle="(Percent of world total; three-year trailing moving\naverage)",
+    caption=(
+        "Sources: Orbis Crossborder Investment (OCBI) database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Shares are computed on announcement years relative to all\n"
+        "destination economies in the database and cover announced and\n"
+        "completed projects. Latest available data as of September 2, 2026. FDI =\n"
+        "foreign direct investments; LAC = Latin America and the Caribbean."
+    ),
+    left=0.35,
+    right=0.15,
+    bottom_gap=0.3,
+)
+
+for series, colour in series_colours.items():
+    ax.plot(data["category"], data[series], color=colour, linewidth=1.9,
+            solid_capstyle="round", label=series)
+
+ax.set_xlim(2004.5, 2025.5)
+ax.set_xticks(range(2005, 2026, 5))
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 4, 16, 2)
+ax.tick_params(axis="y", length=2.8)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.04, 0.98), handlelength=3.0,
+          labelspacing=0.15)
+
+save_chart(fig, STEM)
+````

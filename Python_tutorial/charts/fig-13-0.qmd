@@ -1,0 +1,237 @@
+---
+title: "Figure 13: WHD: Policies in Response to the Iran Shock"
+---
+
+![Python: `python/fig-13-0.py`](../images/python/fig-13-0.png)
+
+How countries in the Western Hemisphere responded to the commodity price
+shock. The chart has two sets of three bars, each with its own scale:
+
+- **left**, on the left scale: the share of countries whose policies allow
+  or increase, do not affect, or reduce the pass-through of commodity prices
+  to domestic prices;
+- **right**, on the right scale: the number of policies, by type (taxes,
+  spending, other).
+
+The two halves measure different things, a percentage and a count, which is
+why they need separate scales.
+
+**New in this chart:** bars on the right-hand scale, and a two-row label
+table with long group labels.
+
+## The data
+
+Two sheets, `datal` and `datar`, each with 3 rows and a single column
+`series_0`. In Excel, the chart was built from two series on different axes,
+and the extraction step stored them on separate sheets (`l` for left, `r`
+for right).
+
+The extracted data have no usable category names, so all labels are typed
+into the script from the published chart:
+
+```python
+left_labels = ["Allow or\nincrease", "No effect", "Reduce"]
+right_labels = ["Taxes", "Spending", "Other"]
+left_group = ("Percent share of countries\nimplementing policies affecting\n"
+              "commodity price pass-through")
+right_group = "Number of policies\nimplemented"
+```
+
+The `\n` are line breaks, placed where the published chart breaks the
+labels. `left_group` is written as two strings in brackets next to each
+other: Python joins strings that follow each other directly, which is a
+convenient way to split a long text over several lines of code.
+
+```python
+left = read_chart_data(STEM, "datal")
+right = read_chart_data(STEM, "datar")
+```
+
+`read_chart_data()` reads sheet `data` by default; the second argument picks
+another sheet. See [Reading the data](../chart-style.qmd#sec-read).
+
+## The script
+
+### The frame
+
+`new_chart()` is called with `subtitle=None`, because this chart has no
+subtitle: the units are in the group labels instead. The ten-line caption
+and `bottom_gap=0.85`, more than twice the usual value, leave a short plot
+area, but the label table below the bars needs that room. `left=0.35` and
+`right=0.35` make space for the two scales.
+
+### Bars on two scales
+
+```python
+ax.bar([1, 2, 3], left["series_0"], width=0.56, color="#08679D")
+set_y_scale(ax, 0, 80, 20)
+ax.tick_params(axis="y", length=2.8)
+
+ax_right = add_right_axis(ax, (0, 60), 15)
+ax_right.bar([4, 5, 6], right["series_0"], width=0.56, color="#C85F16")
+ax_right.tick_params(axis="y", length=2.8)
+```
+
+The left sheet goes at positions 1–3 on the left axes object, in blue, and
+the right sheet at positions 4–6 on the twin, in orange. Both axes objects
+share the x-axis, so the six bars line up in one row. Each group is read
+against its own scale. See [A right-hand
+scale](../techniques.qmd#sec-right-scale).
+
+The positions are written out as lists, `[1, 2, 3]` and `[4, 5, 6]`, rather
+than computed with `np.arange`, because they are fixed and easy to read.
+
+The left scale runs from 0 to 80 in steps of 20 and the right from 0 to 60
+in steps of 15. Both have four intervals, so the ticks line up across the
+chart.
+
+### A two-row table of labels
+
+```python
+# Two-row table of labels below the plot.
+trans = ax.get_xaxis_transform()
+for xi in (0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5):
+    depth = -0.42 if xi in (0.5, 3.5, 6.5) else -0.14
+    ax.plot([xi, xi], [0, depth], color="black", linewidth=0.6,
+            transform=trans, clip_on=False)
+for xi, label in enumerate(left_labels + right_labels, start=1):
+    ax.text(xi, -0.07, label, ha="center", va="center", transform=trans,
+            linespacing=1.0)
+for centre, label in ((2, left_group), (5, right_group)):
+    ax.text(centre, -0.28, label, ha="center", va="center", transform=trans,
+            linespacing=1.0)
+```
+
+Under the bars is a small table: a row of bar labels and, below it, a row of
+group labels, separated by vertical lines. Excel draws this automatically
+for a chart with two levels of category labels; matplotlib does not, so the
+script draws it. See [Tables of labels below the
+plot](../techniques.qmd#sec-label-tables).
+
+**The coordinates.** `trans = ax.get_xaxis_transform()` is a mixed
+coordinate system: x in data units (bar positions), y as a fraction of the
+plot height, with 0 the bottom of the plot and 1 the top. Negative y-values
+are below the plot. This makes the table independent of the y-scale: -0.07
+always means "7 percent of the plot height below the axis". See [Text,
+arrows and coordinates](../techniques.qmd#sec-text).
+
+**The separators.** Seven vertical lines, halfway between the bars:
+
+- at 0.5, 3.5 and 6.5, the outer edges and the boundary between the groups,
+  they reach down through both rows, to -0.42;
+- between the bars of the same group, they only cross the first row, to
+  -0.14.
+
+`depth = -0.42 if ... else -0.14` is Python's one-line *if*: it picks the
+first value when the condition is true, the second otherwise.
+`clip_on=False` lets the lines be drawn outside the plot area; normally
+matplotlib cuts off anything outside it.
+
+**The bar labels.** `enumerate(..., start=1)` numbers the six labels 1 to 6,
+the bar positions. Each is centred under its bar, at 7 percent of the plot
+height below the axis.
+
+**The group labels** are centred under the middle bar of each group, at
+positions 2 and 5, and 28 percent below the axis. They have up to three
+lines, which is why the separators between the groups reach down 42 percent
+and `bottom_gap` is so large.
+
+### The x-axis
+
+```python
+ax.set_xlim(0.5, 6.5)
+ax.set_xticks([])
+```
+
+The x-limits put the outer separators exactly at the plot edges. The normal
+x-ticks are switched off, because the table takes their place.
+
+There is no legend. The group labels and the two scales identify the bars.
+
+## Changing the chart
+
+- **Different labels.** Edit the four label variables at the top. If a
+  group label needs a fourth line, increase the depth of the outer
+  separators (for example to -0.52), move the group labels down a little and
+  increase `bottom_gap`.
+- **Value labels.** Keep what `ax.bar()` returns and call
+  `ax.bar_label(bars, fmt="%.0f")`; do the same for `ax_right`.
+- **Different group sizes.** If the left group had four bars, the positions
+  would be 1–4 and 5–7, the separators at 0.5, 1.5, ..., 7.5 with the long
+  ones at 0.5, 4.5 and 7.5, and the group label centres at 2.5 and 6.
+
+## The complete script
+
+The full `python/fig-13-0.py`, as it runs:
+
+```` {.python filename="python/fig-13-0.py"}
+"""Figure 13: WHD: Policies in Response to the Iran Shock."""
+from chart_style import (
+    add_right_axis,
+    new_chart,
+    read_chart_data,
+    save_chart,
+    set_y_scale,
+)
+
+STEM = "fig-13-0"
+
+# The labels are not part of the extracted data; they are taken from the
+# published chart. The left three bars use the left scale (percent of
+# countries), the right three the right scale (number of policies).
+left_labels = ["Allow or\nincrease", "No effect", "Reduce"]
+right_labels = ["Taxes", "Spending", "Other"]
+left_group = ("Percent share of countries\nimplementing policies affecting\n"
+              "commodity price pass-through")
+right_group = "Number of policies\nimplemented"
+
+left = read_chart_data(STEM, "datal")
+right = read_chart_data(STEM, "datar")
+
+fig, ax = new_chart(
+    title="WHD: Policies in Response to the Iran Shock",
+    subtitle=None,
+    caption=(
+        "Sources: IMF, Global Policy Tracker database; and IMF staff calculations.\n"
+        "Note: Examples of policies that increase commodity price pass-through\n"
+        "include reductions of fuel tax recoveries, fuel subsidy removals\n"
+        "(Spending), removals of the fuel price controls, and increases to\n"
+        "domestically controlled fuel prices (Others). Examples of policies that\n"
+        "reduce commodity price pass-through include fuel, electricity, and food\n"
+        "subsidies (Spending), and reductions in fuel taxes (Taxes). “Others” also\n"
+        "includes credit guarantees, export taxes, relaxation of fuel standards,\n"
+        "release of strategic reserves, work from home mandates, and public\n"
+        "sector energy conservation."
+    ),
+    title_size=13.5,
+    left=0.35,
+    right=0.35,
+    bottom_gap=0.85,
+)
+
+ax.bar([1, 2, 3], left["series_0"], width=0.56, color="#08679D")
+set_y_scale(ax, 0, 80, 20)
+ax.tick_params(axis="y", length=2.8)
+
+ax_right = add_right_axis(ax, (0, 60), 15)
+ax_right.bar([4, 5, 6], right["series_0"], width=0.56, color="#C85F16")
+ax_right.tick_params(axis="y", length=2.8)
+
+# Two-row table of labels below the plot.
+trans = ax.get_xaxis_transform()
+for xi in (0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5):
+    depth = -0.42 if xi in (0.5, 3.5, 6.5) else -0.14
+    ax.plot([xi, xi], [0, depth], color="black", linewidth=0.6,
+            transform=trans, clip_on=False)
+for xi, label in enumerate(left_labels + right_labels, start=1):
+    ax.text(xi, -0.07, label, ha="center", va="center", transform=trans,
+            linespacing=1.0)
+for centre, label in ((2, left_group), (5, right_group)):
+    ax.text(centre, -0.28, label, ha="center", va="center", transform=trans,
+            linespacing=1.0)
+
+ax.set_xlim(0.5, 6.5)
+ax.set_xticks([])
+
+save_chart(fig, STEM)
+````

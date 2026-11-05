@@ -1,0 +1,192 @@
+---
+title: "Figure 1.2: LAC: Growth Dispersion"
+---
+
+![Python: `python/fig-1-2.py`](../images/python/fig-1-2.png)
+
+Two annual measures of how far growth rates in the region differ, from 2000
+to 2025. The first, the average pairwise gap, compares every pair of
+countries. The second, the average distance from the median, compares each
+country with the middle of the region. Both rise when countries grow at very
+different rates, as in crises, and fall when growth is similar across the
+region.
+
+**New in this chart:** smoothed lines, with `smooth_line()`.
+
+## The data
+
+Sheet `data`, 26 rows:
+
+| category | Average pairwise gap | Average distance from median |
+|---|---|---|
+| 2000 | 2.74 | 1.83 |
+
+The years are numbers, so they can be used directly on the x-axis. Each
+column is one line, and the column names are the legend labels.
+
+## The script
+
+### Imports and colours
+
+```python
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart, smooth_line
+```
+
+Besides the usual helpers, the script imports `smooth_line` from the shared
+module and `MultipleLocator` from matplotlib, which is used to set the tick
+spacing on both axes.
+
+```python
+series_colours = {
+    "Average pairwise gap": "#0067A9",
+    "Average distance from median": "#00A3AD",
+}
+```
+
+Blue and teal: two colours of the same family, because the two lines measure
+the same thing in two ways.
+
+### The frame
+
+The caption has seven lines and explains both measures. To fit them, the
+caption font is reduced to `caption_size=8.2`. `bottom_gap=0.5` leaves
+extra room under the plot for the year labels, which are written vertically.
+
+### Smoothed lines
+
+```python
+# The Excel chart uses smoothed lines.
+for series, colour in series_colours.items():
+    ax.plot(*smooth_line(data["category"], data[series]), color=colour,
+            linewidth=1.8, solid_capstyle="round", label=series)
+```
+
+The Excel chart has the *Smoothed line* option switched on (in *Format Data
+Series → Line*). matplotlib has no such option: `ax.plot()` always joins the
+points with straight segments. The shared helper `smooth_line(x, y)` fills
+the gap. It returns the x and y coordinates of a smooth curve through the 26
+points, with 20 points per year. Drawn with straight segments, 500 points
+look like a curve.
+
+The `*` in front of `smooth_line(...)` unpacks what the function returns.
+`smooth_line()` returns two arrays, x and y, and `*` passes them as the
+first two arguments of `ax.plot()`. Without the star you would write:
+
+```python
+xs, ys = smooth_line(data["category"], data[series])
+ax.plot(xs, ys, color=colour, ...)
+```
+
+The curve passes exactly through every data point, so no value is changed:
+only the path between points is different. It uses the same method as Excel
+(a Catmull-Rom spline), so the two charts match closely. How the curve is
+computed is explained in [The shared
+layout](../chart-style.qmd#sec-smooth).
+
+Without smoothing, the line would be `ax.plot(data["category"],
+data[series], ...)`. Try it to see the difference: with annual data the
+straight segments and sharp corners are clearly visible.
+
+### The axes
+
+```python
+ax.set_xlim(2000, 2025)
+ax.xaxis.set_major_locator(MultipleLocator(5))
+ax.tick_params(axis="x", labelrotation=90, direction="in", length=2.3, pad=5)
+
+ax.set_ylim(0, 8)
+ax.yaxis.set_major_locator(MultipleLocator(2))
+ax.tick_params(axis="y", direction="in", length=2.3, pad=6)
+```
+
+- **The x-axis** runs from 2000 to 2025. `MultipleLocator(5)` puts a tick at
+  every multiple of 5 within the limits: 2000, 2005, ..., 2025. This is an
+  alternative to `ax.set_xticks(range(2000, 2026, 5))`; both give the same
+  result here. The labels are written vertically (`labelrotation=90`).
+- **No half-step margins.** The lines start and end exactly at the edges of
+  the plot, as with Excel's *Axis position: On tick marks* setting. Compare
+  [Figure 3.1](fig-3-1.qmd), which leaves half a year at each end.
+- **The y-axis** runs from 0 to 8 with a tick every 2.
+- **Tick marks point inwards** on both axes (`direction="in"`), as in the
+  published chart. See [Tick marks and axis
+  lines](../techniques.qmd#sec-ticks).
+
+### The legend
+
+```python
+ax.legend(loc="upper left", bbox_to_anchor=(0.05, 0.98),
+          handlelength=3.0, labelspacing=0.3)
+```
+
+The legend sits in the top left. `labelspacing=0.3` is a little more than
+in most charts, because the published chart leaves more space between the
+two entries. See [Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **Smoother or rougher curves.** `smooth_line(x, y, points_per_segment=40)`
+  uses more points per year. 20 is already more than you can see at this
+  size, so this rarely matters.
+- **Switching smoothing off.** Replace `*smooth_line(data["category"],
+  data[series])` with `data["category"], data[series]`.
+- **When not to smooth.** A smoothed curve can overshoot between two points,
+  for example below zero next to a sharp fall. For data where that would be
+  misleading, use straight lines.
+
+## The complete script
+
+The full `python/fig-1-2.py`, as it runs:
+
+```` {.python filename="python/fig-1-2.py"}
+"""Figure 1.2: LAC: Growth Dispersion."""
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart, smooth_line
+
+STEM = "fig-1-2"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "Average pairwise gap": "#0067A9",
+    "Average distance from median": "#00A3AD",
+}
+
+fig, ax = new_chart(
+    title="LAC: Growth Dispersion",
+    subtitle="(Year-over-year percentage change)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Average pairwise gap is the average absolute difference in growth\n"
+        "rates across all country pairs. Average distance from median is the\n"
+        "average absolute deviation of each country's growth rate from the regional\n"
+        "median. Sample excludes Guyana. LAC = Latin America and the\n"
+        "Caribbean."
+    ),
+    caption_size=8.2,
+    left=0.3,
+    right=0.2,
+    bottom_gap=0.5,
+)
+
+# The Excel chart uses smoothed lines.
+for series, colour in series_colours.items():
+    ax.plot(*smooth_line(data["category"], data[series]), color=colour,
+            linewidth=1.8, solid_capstyle="round", label=series)
+
+ax.set_xlim(2000, 2025)
+ax.xaxis.set_major_locator(MultipleLocator(5))
+ax.tick_params(axis="x", labelrotation=90, direction="in", length=2.3, pad=5)
+
+ax.set_ylim(0, 8)
+ax.yaxis.set_major_locator(MultipleLocator(2))
+ax.tick_params(axis="y", direction="in", length=2.3, pad=6)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.05, 0.98),
+          handlelength=3.0, labelspacing=0.3)
+
+save_chart(fig, STEM)
+````
