@@ -1,0 +1,200 @@
+---
+title: "Figure 16.2: LAC: Composition of FDI Capital Expenditure"
+---
+
+![Python: `python/fig-16-2.py`](../images/python/fig-16-2.png)
+
+Annual FDI capital expenditure announced in the region, split by sector, as
+stacked bars. The height of each bar is the total for the year; the
+coloured segments show how much of it went to manufacturing, mining, ICT,
+business services and other sectors.
+
+**A clean example of stacked bars** on a year axis. Compare it with
+[Figure 2.3](fig-2-3.qmd), which adds dots and a reordered legend, and with
+[Figure 7.2](fig-7-2.qmd), which stacks positive and negative values.
+
+## The data
+
+Sheet `data`, 13 rows (2013 to 2025):
+
+| category | Manufacturing | Mining | ICT and data | Business services | Other |
+|---|---|---|---|---|---|
+| 2013 | 80.9 | 48.2 | 2.4 | 5.2 | 34.2 |
+
+One column per sector, in billions of US dollars. All values are positive,
+which keeps the stacking simple: each segment starts where the previous one
+ended. There is no total column; the bar height is simply the sum of the
+segments.
+
+## The script
+
+### The stacking order
+
+```python
+data = read_chart_data(STEM)
+years = data["category"]
+
+# Stacking order, from the bottom up, and colours.
+sector_colours = {
+    "Manufacturing": "#5B2A7E",
+    "Mining": "#C75B12",
+    "ICT and data": "#00649A",
+    "Business services": "#009A9A",
+    "Other": "#B8BCBE",
+}
+```
+
+The dictionary does two jobs. It links each sector to its colour, and its
+order is the stacking order, from the bottom up. Manufacturing, the largest
+sector, sits at the bottom, as in the published chart. "Other" is grey and
+on top: a residual category is usually drawn in a neutral colour so that the
+eye goes to the named sectors.
+
+In Python, a dictionary keeps the order in which its entries were written,
+so the loop below always runs through the sectors in this order.
+
+### The stack
+
+```python
+bottom = np.zeros(len(data))
+for sector, colour in sector_colours.items():
+    ax.bar(years, data[sector], bottom=bottom, width=0.56, color=colour,
+           label=sector)
+    bottom += data[sector].to_numpy()
+```
+
+matplotlib has no "stacked bar chart" type, as Excel does. Instead,
+`ax.bar()` takes a `bottom` argument: the height at which each bar starts.
+Stacking is then a loop with a running total:
+
+1. `bottom` starts as 13 zeros, one per year (`np.zeros(len(data))`).
+2. The first sector, Manufacturing, is drawn from zero.
+3. Its values are added to `bottom`, so `bottom` now holds the top of the
+   Manufacturing segments.
+4. Mining is drawn starting from there, and added in turn, and so on up the
+   stack.
+
+`data[sector].to_numpy()` turns the pandas column into a plain array of
+numbers before adding it. That way the addition is position by position, and
+pandas does not try to match row labels. See [Stacked
+bars](../techniques.qmd#sec-stacked).
+
+Because the years are numbers, the bars are drawn directly at the years:
+there is no need for positions 0, 1, 2, .... On a year axis, `width=0.56`
+means 0.56 of a year, so bars fill a little more than half the space and
+the gaps a little less.
+
+`label=sector` stores each sector's name for the legend.
+
+### The axes
+
+```python
+ax.set_xlim(2012.5, 2025.5)
+ax.set_xticks(range(2013, 2026, 2))
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 0, 300, 60)
+ax.tick_params(axis="y", length=2.8)
+```
+
+- **The x-limits** are half a year beyond the first and last bars, so every
+  bar has the same space around it.
+- **Labels** go on every second year: `range(2013, 2026, 2)` gives 2013,
+  2015, ..., 2025. The other years have no tick mark.
+- **The y-axis** runs from 0 to 300 in steps of 60. That is an unusual step,
+  but it gives six labelled intervals, which is what the published chart
+  uses. See [The y-scale](../chart-style.qmd#sec-y-scale).
+
+### The legend
+
+```python
+ax.legend(loc="upper left", bbox_to_anchor=(0.04, 1.0), handlelength=0.9,
+          handleheight=0.9, handletextpad=0.4, labelspacing=0.15)
+```
+
+For bars, the legend shows a filled box in each colour. By default the box
+is a wide rectangle. `handlelength=0.9` and `handleheight=0.9` make it a
+small square, as in the published chart. Both are in units of the font
+size. `handletextpad=0.4` brings the text closer to the square, and
+`labelspacing=0.15` keeps the five entries close together.
+
+The legend lists the sectors in drawing order, so Manufacturing, the bottom
+of the stack, comes first. That matches the published chart here, but it is
+the reverse of what the eye sees, since Manufacturing is at the bottom of
+the bars and the top of the legend. In [Figure 7.2](fig-7-2.qmd) the legend
+is reversed to follow the stack from the top. See
+[Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **A different stacking order.** Reorder the entries of `sector_colours`.
+  The bars and the legend both follow.
+- **Reverse the legend** to match the stack visually:
+
+  ```python
+  handles, labels = ax.get_legend_handles_labels()
+  ax.legend(handles[::-1], labels[::-1], loc="upper left", ...)
+  ```
+
+- **Shares instead of levels.** Divide each row by its total before
+  drawing, `data[list(sector_colours)].div(data[list(sector_colours)].sum(axis=1), axis=0) * 100`,
+  and set the y-scale to 0–100.
+
+## The complete script
+
+The full `python/fig-16-2.py`, as it runs:
+
+```` {.python filename="python/fig-16-2.py"}
+"""Figure 16.2: LAC: Composition of FDI Capital Expenditure."""
+import numpy as np
+
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-16-2"
+
+data = read_chart_data(STEM)
+years = data["category"]
+
+# Stacking order, from the bottom up, and colours.
+sector_colours = {
+    "Manufacturing": "#5B2A7E",
+    "Mining": "#C75B12",
+    "ICT and data": "#00649A",
+    "Business services": "#009A9A",
+    "Other": "#B8BCBE",
+}
+
+fig, ax = new_chart(
+    title="LAC: Composition of FDI Capital Expenditure",
+    subtitle="(Billions of US dollars; annual levels)",
+    caption=(
+        "Sources: Orbis Crossborder Investment database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Years are announcement years and cover announced and\n"
+        "completed projects. Latest available data as of September 2, 2026. FDI =\n"
+        "foreign direct investments; ICT = information and communications\n"
+        "technology and data; LAC = Latin America and the Caribbean."
+    ),
+    left=0.35,
+    right=0.15,
+    bottom_gap=0.3,
+)
+
+bottom = np.zeros(len(data))
+for sector, colour in sector_colours.items():
+    ax.bar(years, data[sector], bottom=bottom, width=0.56, color=colour,
+           label=sector)
+    bottom += data[sector].to_numpy()
+
+ax.set_xlim(2012.5, 2025.5)
+ax.set_xticks(range(2013, 2026, 2))
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, 0, 300, 60)
+ax.tick_params(axis="y", length=2.8)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.04, 1.0), handlelength=0.9,
+          handleheight=0.9, handletextpad=0.4, labelspacing=0.15)
+
+save_chart(fig, STEM)
+````

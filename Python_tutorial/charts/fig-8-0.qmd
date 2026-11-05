@@ -1,0 +1,228 @@
+---
+title: "Figure 8: Impact of El Niño on Inflation"
+---
+
+![Python: `python/fig-8-0.py`](../images/python/fig-8-0.png)
+
+The estimated cumulative impact of an El Niño event on inflation in two
+regions, the Andean countries and CAPDR, over the 12 quarters after the
+event. Quarter 0 is the start of the event. Each line is an estimate from a
+local projection, and each shaded area its confidence band (10th to 90th
+percentile). Where a band lies entirely above zero, the effect is clearly
+positive.
+
+**New in this chart:** two bands kept in one dictionary. It is very similar
+to [Figure 1.1.2](fig-1-1-2.qmd), and the two pages are worth comparing.
+
+## The data
+
+Sheet `data`, 13 rows (quarters 0 to 12):
+
+| category | Dummy1 | Dummy2 | Dummy3 | Dummy4 | Andean | CAPDR |
+|---|---|---|---|---|---|---|
+| 0 | -0.01 | 0.67 | -0.86 | 0.92 | 0.33 | 0.26 |
+
+`Dummy1` to `Dummy4` are the stacked-area helper series for the two bands.
+In Excel, two bands on one chart are built as one stack of four areas:
+
+| Series | Role | Visible? |
+|---|---|---|
+| `Dummy1` | from zero to the bottom of the Andean band | no |
+| `Dummy2` | the Andean band | yes |
+| `Dummy3` | from the top of the Andean band to the bottom of the CAPDR band | no |
+| `Dummy4` | the CAPDR band | yes |
+
+`Dummy3` can be negative, as in the first row (-0.86): the CAPDR band then
+starts *below* the top of the Andean band, and the two overlap.
+
+`Andean` and `CAPDR` are the estimates, drawn as lines.
+
+## The script
+
+### The band edges
+
+```python
+# In Excel, the confidence bands are drawn as stacked areas, built from four
+# helper series (Dummy1-Dummy4). Adding them up gives the band edges.
+d1, d2, d3, d4 = (data[f"Dummy{i}"] for i in range(1, 5))
+bands = {
+    "Andean": (d1, d1 + d2, "#D8C8DE"),
+    "CAPDR": (d1 + d2 + d3, d1 + d2 + d3 + d4, "#F3C9AD"),
+}
+line_colours = {"Andean": "#5A2875", "CAPDR": "#C95716"}
+```
+
+The first line reads the four helper columns in one go:
+
+- `f"Dummy{i}"` is an *f-string*: the `{i}` is replaced by the value of
+  `i`, so it gives `"Dummy1"`, `"Dummy2"`, and so on.
+- `(... for i in range(1, 5))` produces the four columns one after another,
+  for i = 1, 2, 3, 4.
+- `d1, d2, d3, d4 = ...` assigns them to four names, in order.
+
+It is a compact version of four lines: `d1 = data["Dummy1"]`, and so on.
+
+The band edges are running totals of the helper series, as explained in
+[Shaded bands](../techniques.qmd#sec-bands):
+
+- **Andean band**: from `d1` to `d1 + d2`.
+- **CAPDR band**: stacked on top of the Andean band, after the invisible gap
+  `d3`, so from `d1 + d2 + d3` to `d1 + d2 + d3 + d4`.
+
+Each band is stored with its colour as a triple (lower, upper, colour). The
+band colours are pale versions of the line colours: light purple for the
+Andean band, light orange for CAPDR.
+
+### The frame
+
+`new_chart()` is called with `bottom_gap=0.5`, because there is an axis
+title ("Quarters") under the quarter numbers.
+
+### The bands
+
+```python
+for lower, upper, colour in bands.values():
+    ax.fill_between(quarters, lower, upper, color=colour, alpha=0.55, linewidth=0)
+```
+
+`.values()` loops over the triples only, without the names, and unpacks each
+one into `lower`, `upper` and `colour`. The names in `bands` are not used by
+the script; they are there so the dictionary is easy to read.
+
+`alpha=0.55` makes the bands about half transparent, so where they overlap
+both colours show, and the overlap appears as a mix of the two. Without
+transparency, the CAPDR band, drawn second, would hide the Andean band where
+they overlap. The colours are chosen light enough that, even half
+transparent, they stay in the background.
+
+### The axis line and the lines
+
+```python
+# The x-axis is drawn at zero, with short tick marks pointing down; the
+# quarter labels stay at the bottom of the chart.
+ax.axhline(0, color="black", linewidth=0.8)
+ax.vlines(quarters, -0.08, 0, color="black", linewidth=0.6)
+
+for series, colour in line_colours.items():
+    ax.plot(quarters, data[series], color=colour, linewidth=2.0,
+            solid_capstyle="round", label=series)
+```
+
+- **An axis line at zero**, drawn over the bands, with short ticks pointing
+  down from 0 to -0.08 at each quarter, as in the published chart. See [An axis line
+  at zero](../techniques.qmd#sec-axis-line).
+- **The two lines**, drawn last, so they lie on top of the bands and the
+  axis line. They are 2 points wide, in the full-strength colours.
+
+Only the lines have a `label`, so the legend shows the two regions as lines,
+not the bands. The caption explains the shaded areas.
+
+### The axes and the legend
+
+```python
+ax.set_xlim(-0.5, 12.5)
+ax.set_xticks(quarters)
+ax.set_xlabel("Quarters", fontsize=9, labelpad=7)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, -2, 5, 1)
+ax.tick_params(axis="y", direction="in", length=2.3)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.05, 0.98), handlelength=3.0,
+          labelspacing=0.4)
+```
+
+- **The x-axis** runs half a quarter beyond 0 and 12, and every quarter is
+  labelled. The quarters are numbers, so they go on the axis directly.
+- **The axis title** "Quarters" is written with `ax.set_xlabel()`, 7 points
+  below the numbers.
+- **The bottom spine** and its ticks are hidden, because the axis line is at
+  zero.
+- **The y-axis** runs from -2 to 5 with a tick every 1, so zero is a tick.
+- **The legend** sits in the top left, with a little more space between the
+  two entries than usual (`labelspacing=0.4`).
+
+## Comparing with Figure 1.1.2
+
+[Figure 1.1.2](fig-1-1-2.qmd) also has two confidence bands built from the
+same four kinds of Excel helper series. Its script stores each band's edges
+in a variable of its own (`blue_band`, `orange_band`) and draws the bands
+with two separate `fill_between()` calls, each with its own settings. This
+one keeps each band's edges and colour together in a dictionary and draws
+all bands in one loop. The second approach is easier to extend: a third band would be one
+more entry in `bands`.
+
+## Changing the chart
+
+- **Opaque bands.** If the bands do not overlap in a new edition, drop
+  `alpha=0.55` and use slightly lighter colours.
+- **Bands in the legend.** Give each band a `label`, for example by storing
+  a fourth item in each triple, and pass it to `fill_between()`.
+- **A third region.** Add its band (two more helper columns) and its line
+  colour; the loops need no change.
+
+## The complete script
+
+The full `python/fig-8-0.py`, as it runs:
+
+```` {.python filename="python/fig-8-0.py"}
+"""Figure 8: Impact of El Niño on Inflation."""
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-8-0"
+
+data = read_chart_data(STEM)
+quarters = data["category"]
+
+# In Excel, the confidence bands are drawn as stacked areas, built from four
+# helper series (Dummy1-Dummy4). Adding them up gives the band edges.
+d1, d2, d3, d4 = (data[f"Dummy{i}"] for i in range(1, 5))
+bands = {
+    "Andean": (d1, d1 + d2, "#D8C8DE"),
+    "CAPDR": (d1 + d2 + d3, d1 + d2 + d3 + d4, "#F3C9AD"),
+}
+line_colours = {"Andean": "#5A2875", "CAPDR": "#C95716"}
+
+fig, ax = new_chart(
+    title="Impact of El Niño on Inflation",
+    subtitle="(Percent; cumulative impact)",
+    caption=(
+        "Source: IMF staff calculations.\n"
+        "Note: Shows the estimated impact of El Niño events on inflation using the\n"
+        "local projection method in a cross-country panel. Shaded areas\n"
+        "correspond to 10th/90th percentile confidence intervals. Andean =\n"
+        "Colombia, Ecuador, Peru; CAPDR = Central America, Panama, and the\n"
+        "Dominican Republic."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.5,
+)
+
+for lower, upper, colour in bands.values():
+    ax.fill_between(quarters, lower, upper, color=colour, alpha=0.55, linewidth=0)
+
+# The x-axis is drawn at zero, with short tick marks pointing down; the
+# quarter labels stay at the bottom of the chart.
+ax.axhline(0, color="black", linewidth=0.8)
+ax.vlines(quarters, -0.08, 0, color="black", linewidth=0.6)
+
+for series, colour in line_colours.items():
+    ax.plot(quarters, data[series], color=colour, linewidth=2.0,
+            solid_capstyle="round", label=series)
+
+ax.set_xlim(-0.5, 12.5)
+ax.set_xticks(quarters)
+ax.set_xlabel("Quarters", fontsize=9, labelpad=7)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, -2, 5, 1)
+ax.tick_params(axis="y", direction="in", length=2.3)
+
+ax.legend(loc="upper left", bbox_to_anchor=(0.05, 0.98), handlelength=3.0,
+          labelspacing=0.4)
+
+save_chart(fig, STEM)
+````

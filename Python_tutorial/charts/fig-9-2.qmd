@@ -1,0 +1,160 @@
+---
+title: "Figure 9.2: Total Factor Productivity Relative to the US"
+---
+
+![Python: `python/fig-9-2.py`](../images/python/fig-9-2.png)
+
+Annual total factor productivity (TFP) relative to the United States for
+four economies, 2000 to 2031. A value of 100 would mean the same TFP as the
+United States. The years after the latest data are projections; the chart
+draws them in the same way as the history.
+
+**New in this chart:** a legend in one row across the top.
+
+## The data
+
+Sheet `data`, 32 rows (2000 to 2031):
+
+| category | LA7 | EM Asia | EM Europe | Canada |
+|---|---|---|---|---|
+| 2000 | 69.3 | 36.3 | 70.0 | 95.4 |
+
+One column per line, and the years as numbers in `category`. The column
+names are exactly the legend labels, so the script can use them for both.
+
+## The script
+
+This is one of the shortest scripts. It is worth reading in full as an
+example of the basic pattern that most line charts in the book follow.
+
+### Colours and frame
+
+```python
+series_colours = {
+    "LA7": "#7030A0",
+    "EM Asia": "#00A6AD",
+    "EM Europe": "#C65911",
+    "Canada": "#404040",
+}
+```
+
+The order of the dictionary is the order in which the lines are drawn and
+the order of the legend entries. A later line is drawn on top of an earlier
+one, so Canada, last, lies on top where lines cross.
+
+The call to `new_chart()` sets the title, subtitle and a six-line caption.
+`bottom_gap=0.45` is a little larger than usual, because the year labels
+below the x-axis are written vertically.
+
+### The drawing
+
+```python
+for series, colour in series_colours.items():
+    ax.plot(data["category"], data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round", label=series)
+
+ax.set_xlim(2000, 2031)
+ax.set_xticks(range(2000, 2031, 5))
+ax.tick_params(axis="x", labelrotation=90, length=2.8)
+
+set_y_scale(ax, 30, 110, 20)
+ax.tick_params(axis="y", length=2.8)
+
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.02), ncol=4,
+          handlelength=2.6, handletextpad=0.4, columnspacing=1.0)
+```
+
+- **The lines.** One `ax.plot()` per series, with the years on the x-axis.
+  `label=series` stores the name for the legend.
+- **The x-axis.** The limits are exactly the first and last years, so the
+  lines start at the left edge and end at the right edge, with no margin.
+  `range(2000, 2031, 5)` gives 2000, 2005, ..., 2030, the years that get a
+  label. The range stops before 2031, but the axis runs on to 2031, the last
+  data year. `labelrotation=90` writes the labels vertically.
+- **The y-axis** runs from 30 to 110 with a tick every 20: 30, 50, 70, 90,
+  110. It starts at 30, not zero. In matplotlib, as in Excel, the limits are
+  what you set; there is no rule that an axis must include zero. Starting at
+  30 gives the lines more height, which is fine for a chart of levels like
+  this one. See [The y-scale](../chart-style.qmd#sec-y-scale).
+- **The legend.** It is centred across the top: `loc="upper center"` means
+  the top-centre point of the legend is placed at the anchor, and
+  `bbox_to_anchor=(0.5, 1.02)` puts the anchor halfway across the plot,
+  slightly above its top edge. `ncol=4` puts the four entries in one row.
+
+### Fitting the legend in one row
+
+Four entries side by side are wider than the default spacing allows, so
+three arguments are tightened:
+
+| Argument | Meaning | Value here | Default |
+|---|---|---|---|
+| `handlelength` | length of the line sample | 2.6 | 2.0 |
+| `handletextpad` | gap between sample and text | 0.4 | 0.8 |
+| `columnspacing` | gap between columns | 1.0 | 2.0 |
+
+All three are in units of the font size, so they scale if you change the
+legend's font size. The line samples are a little longer than the default,
+and the gaps much shorter, which lets the row fit within the plot width.
+See [Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **Mark the projections.** To show which years are projections, shade them
+  with `ax.axvspan(2026, 2031, color="#EEEEEE", zorder=0)`, or draw the
+  projection years as dashed lines with a second `ax.plot()` call per series
+  and `linestyle="--"`.
+- **Legend in two rows.** Use `ncol=2` and move the anchor down a little, or
+  put the legend below the chart with `loc="upper center"` and
+  `bbox_to_anchor=(0.5, -0.2)` plus more `bottom_gap`.
+
+## The complete script
+
+The full `python/fig-9-2.py`, as it runs:
+
+```` {.python filename="python/fig-9-2.py"}
+"""Figure 9.2: Total Factor Productivity Relative to the US."""
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-9-2"
+
+data = read_chart_data(STEM)
+
+series_colours = {
+    "LA7": "#7030A0",
+    "EM Asia": "#00A6AD",
+    "EM Europe": "#C65911",
+    "Canada": "#404040",
+}
+
+fig, ax = new_chart(
+    title="Total Factor Productivity Relative to the US",
+    subtitle="(Percent)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; Penn World Table 11.0\n"
+        "database; and IMF staff calculations.\n"
+        "Note: Aggregates are purchasing-power-parity GDP- weighted averages.\n"
+        "EM = emerging; EM Asia = India, Indonesia, Malaysia, Philippines,\n"
+        "Thailand; EM Europe = Hungary, Poland, Romania, Serbia; LA7 = Latin\n"
+        "America 7 (Brazil, Chile, Colombia, Mexico, Paraguay, Peru, Uruguay)."
+    ),
+    left=0.35,
+    right=0.15,
+    bottom_gap=0.45,
+)
+
+for series, colour in series_colours.items():
+    ax.plot(data["category"], data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round", label=series)
+
+ax.set_xlim(2000, 2031)
+ax.set_xticks(range(2000, 2031, 5))
+ax.tick_params(axis="x", labelrotation=90, length=2.8)
+
+set_y_scale(ax, 30, 110, 20)
+ax.tick_params(axis="y", length=2.8)
+
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.02), ncol=4,
+          handlelength=2.6, handletextpad=0.4, columnspacing=1.0)
+
+save_chart(fig, STEM)
+````

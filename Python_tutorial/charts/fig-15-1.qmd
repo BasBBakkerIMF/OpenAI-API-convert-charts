@@ -1,0 +1,154 @@
+---
+title: "Figure 15.1: Effect of 2025 US Tariffs on China on LAC Imports from China"
+---
+
+![Python: `python/fig-15-1.py`](../images/python/fig-15-1.png)
+
+The predicted change in imports from China for four countries, as a result
+of the 2025 US tariffs on China. The idea is trade diversion: when Chinese
+goods face higher tariffs in the United States, some of them are sold in
+Latin America instead. One bar per country, all positive.
+
+**The simplest bar chart in the set.** If you want to make a new bar chart,
+this script is the template to start from.
+
+## The data
+
+Sheet `data`, 4 rows:
+
+| category | series_0 |
+|---|---|
+| Mexico | 7.5 |
+| ... | |
+
+The single series has no name in Excel, so it is called `series_0`. The
+extraction step gives every unnamed series a name of this form (`series_0`,
+`series_1`, ...), numbered in the order of the series in the Excel chart.
+Since there is no legend, the name never appears in the chart.
+
+## The script
+
+The whole script, apart from the imports and the texts:
+
+```python
+data = read_chart_data(STEM)
+
+fig, ax = new_chart(
+    title="Effect of 2025 US Tariffs on China on LAC Imports\nfrom China",
+    subtitle="(Predicted change in imports from China; percent)",
+    caption=(
+        "Sources: Arizala, Schauer, and Grittayaphong (forthcoming); and IMF staff\n"
+        "calculations."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.3,
+)
+
+x = np.arange(len(data))
+ax.bar(x, data["series_0"], width=0.56, color="#5B2875")
+
+ax.set_xticks(x, data["category"])
+ax.set_xlim(-0.5, len(data) - 0.5)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, 0, 8, 2)
+ax.tick_params(axis="y", direction="in", length=2.8)
+
+save_chart(fig, STEM)
+```
+
+What each step does:
+
+1. **Reading the data.** `read_chart_data(STEM)` reads sheet `data` of
+   `excel_and_png/fig-15-1.xlsx` into a pandas DataFrame, a table with named
+   columns. See [Reading the data](../chart-style.qmd#sec-read).
+2. **The frame.** `new_chart()` creates the 5 × 5 inch figure, writes the
+   title, subtitle and sources, and returns the figure (`fig`) and the plot
+   area (`ax`). The title is split where the published chart splits it,
+   with `\n`. The caption is only two lines, so the plot is taller than in
+   most charts. See [The frame](../chart-style.qmd#sec-new-chart).
+3. **Positions.** The country names are text, and bars need numeric
+   x-positions. `np.arange(len(data))` gives 0, 1, 2, 3, one per country.
+   See [Categories as positions](../techniques.qmd#sec-categories).
+4. **The bars.** `ax.bar(x, heights, width=..., color=...)` draws one bar at
+   each position, as high as the value in `series_0`. `width=0.56` means
+   each bar takes 56 percent of the space per category, which leaves a gap
+   of 44 percent between bars. In Excel's terms that is a *gap width* of
+   about 80 percent (0.44 / 0.56). The colour `#5B2875` is the REO's dark
+   purple.
+5. **The labels.** `ax.set_xticks(x, data["category"])` puts the country
+   names under the bars. `length=0` hides the tick marks, as Excel does for
+   a bar chart's category axis, and `pad=5` leaves a little space between
+   the axis and the names.
+6. **The x-limits.** `ax.set_xlim(-0.5, len(data) - 0.5)` runs from half a
+   step before the first bar to half a step after the last. Each bar is
+   then centred in an equal slice of the width, as in Excel.
+7. **The y-axis** runs from 0 to 8, with ticks every 2 pointing in. The
+   shared helper `set_y_scale()` sets the limits and the ticks in one call.
+   See [The y-scale](../chart-style.qmd#sec-y-scale).
+8. **Saving.** `save_chart(fig, STEM)` writes
+   `python/figures/fig-15-1.png` at 600 dpi.
+
+## Changing the chart
+
+Because the script is so short, most changes are one line:
+
+- **Value labels on the bars.** Keep what `ax.bar()` returns and pass it to
+  `ax.bar_label()`:
+
+  ```python
+  bars = ax.bar(x, data["series_0"], width=0.56, color="#5B2875")
+  ax.bar_label(bars, fmt="%.1f", padding=2)
+  ```
+
+- **Negative values.** If some bars go below zero, change the y-scale, for
+  example `set_y_scale(ax, -2, 8, 2)`, and add a line at zero with
+  `ax.axhline(0, color="black", linewidth=0.6)`. See [An axis line at
+  zero](../techniques.qmd#sec-axis-line).
+- **Horizontal bars.** Use `ax.barh(x, data["series_0"], height=0.56, ...)`
+  and `ax.set_yticks(x, data["category"])`. Remember that the y-axis counts
+  upwards, so the first country is at the bottom; `ax.invert_yaxis()` puts
+  it at the top.
+- **More countries.** Nothing has to change: `len(data)` adjusts the
+  positions and limits. With long names, add `rotation=90` to
+  `set_xticks()` and increase `bottom_gap`.
+
+## The complete script
+
+The full `python/fig-15-1.py`, as it runs:
+
+```` {.python filename="python/fig-15-1.py"}
+"""Figure 15.1: Effect of 2025 US Tariffs on China on LAC Imports from China."""
+import numpy as np
+
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-15-1"
+
+data = read_chart_data(STEM)
+
+fig, ax = new_chart(
+    title="Effect of 2025 US Tariffs on China on LAC Imports\nfrom China",
+    subtitle="(Predicted change in imports from China; percent)",
+    caption=(
+        "Sources: Arizala, Schauer, and Grittayaphong (forthcoming); and IMF staff\n"
+        "calculations."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.3,
+)
+
+x = np.arange(len(data))
+ax.bar(x, data["series_0"], width=0.56, color="#5B2875")
+
+ax.set_xticks(x, data["category"])
+ax.set_xlim(-0.5, len(data) - 0.5)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, 0, 8, 2)
+ax.tick_params(axis="y", direction="in", length=2.8)
+
+save_chart(fig, STEM)
+````

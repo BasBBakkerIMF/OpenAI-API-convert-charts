@@ -1,0 +1,206 @@
+---
+title: "Figure 10.2: LA7: General Government Structural Primary Balance"
+---
+
+![Python: `python/fig-10-2.py`](../images/python/fig-10-2.png)
+
+Three vintages of World Economic Outlook (WEO) projections for the same
+variable, the structural primary balance of LA7 governments. Each line is
+the forecast as it was made at one point in time: October 2025, April 2026
+and October 2026. Comparing them shows how the projections have been
+revised. The vintages are shown in shades of purple with different line
+styles, so the newest stands out.
+
+**New in this chart:** solid, dashed and dotted lines.
+
+## The data
+
+Sheet `data`, 11 rows (2021 to 2031):
+
+| category | October 2026 WEO | April 2026 WEO | October 2025 WEO |
+|---|---|---|---|
+| 2021 | -2.69 | -2.71 | -2.64 |
+
+One column per vintage, with the years as numbers. The early years are
+history, so the three vintages are nearly identical there; they diverge in
+the projection years.
+
+## The script
+
+### Colours and line styles
+
+```python
+# Each vintage of the projections: (colour, line style).
+vintages = {
+    "October 2026 WEO": ("#5B267A", "solid"),
+    "April 2026 WEO": ("#8752AA", (0, (5, 2))),
+    "October 2025 WEO": ("#AD7CC5", (0, (2, 2))),
+}
+```
+
+Each entry of the dictionary holds two things: a colour and a line style,
+grouped in brackets as a *tuple*. Other scripts store just a colour per
+series; when a series needs more than one setting, a tuple keeps them
+together.
+
+The latest vintage is solid and darkest, and older vintages are lighter and
+broken. Using both colour and line style makes the chart readable in black
+and white and for readers who find similar colours hard to tell apart.
+
+A line style can be a name (`"solid"`, `"dashed"`, `"dotted"`) or a dash
+pattern of the form `(offset, (on, off))`:
+
+- **`(0, (5, 2))`**: dashes 5 line widths long with gaps of 2;
+- **`(0, (2, 2))`**: shorter dashes with equal gaps, which look dotted at
+  this line width.
+
+The offset, 0, says where in the pattern the line starts. Dash lengths are
+measured in line widths, so the pattern scales with the line. See [Line
+styles](../techniques.qmd#sec-line-styles).
+
+### The frame
+
+The title is split over two lines before "Balance", and the caption has
+seven lines describing the country definitions. `left=0.4` leaves room for
+labels such as `-2.5`.
+
+### The axis line and the lines
+
+```python
+# The x-axis is drawn at zero, with short tick marks pointing up; the year
+# labels stay at the bottom of the chart.
+ax.axhline(0, color="black", linewidth=0.8)
+ax.vlines(range(2021, 2032), 0, 0.04, color="black", linewidth=0.6)
+
+for vintage, (colour, style) in vintages.items():
+    ax.plot(years, data[vintage], color=colour, linestyle=style, linewidth=1.8,
+            label=vintage)
+```
+
+Most values are negative, and the y-axis runs from -3 to 0.5. As in Excel's
+*Horizontal axis crosses at 0*, the axis line is drawn at zero, near the top
+of the plot, with a short tick for every year. The ticks are 0.04 high, in
+data units. See [An axis line at zero](../techniques.qmd#sec-axis-line).
+
+The loop unpacks each dictionary entry in one step:
+`for vintage, (colour, style) in vintages.items()` gives the name, and splits
+the tuple into `colour` and `style`. The brackets around `(colour, style)`
+tell Python that the value is itself a pair. The line style is then passed
+to `ax.plot()` with `linestyle=style`.
+
+The newest vintage comes first in the dictionary, so it is drawn first and
+the older ones lie on top of it where they overlap. For dashed lines that
+works well: the solid line shows through the gaps.
+
+### The axes
+
+```python
+ax.set_xlim(2021, 2031)
+ax.set_xticks(range(2021, 2032, 2))
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, -3, 0.5, 0.5)
+ax.yaxis.set_major_formatter("{x:.1f}")
+ax.tick_params(axis="y", length=2.8)
+```
+
+- **Ticks and labels.** The tick marks at zero are at every year (from the
+  `vlines` call above) but the labels only at every second year: 2021,
+  2023, ..., 2031, as in the published chart.
+- **No margin.** The x-limits are exactly the first and last year, so the
+  lines run from edge to edge.
+- **The bottom spine** and its tick marks are hidden, because the axis line
+  is now at zero.
+- **The y-axis** runs from -3 to 0.5 in steps of 0.5, so zero is a tick.
+- **One decimal.** `ax.yaxis.set_major_formatter("{x:.1f}")` is a shortcut:
+  give matplotlib a format string and it applies it to every label. `{x}`
+  stands for the tick value and `:.1f` means one decimal, so the labels read
+  -3.0, -2.5, ..., 0.5. This does the same as
+  `FormatStrFormatter("%.1f")` in [Figure 2.1](fig-2-1.qmd), in the newer
+  Python format style. See [Number
+  formats](../techniques.qmd#sec-number-formats).
+
+### The legend
+
+```python
+ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.03), handlelength=3.4,
+          labelspacing=0.1)
+```
+
+The legend sits in the lower right, which the lines leave empty. It has
+long sample lines (`handlelength=3.4`, against the default 2), so each dash
+pattern repeats a few times and is recognisable. See
+[Legends](../techniques.qmd#sec-legends).
+
+## Changing the chart
+
+- **A new vintage.** For the next edition, add `"April 2027 WEO"` at the top
+  of the dictionary with the darkest colour and `"solid"`, and move the
+  others down a step: the previous newest becomes dashed, and so on. If you
+  keep only three, delete the oldest.
+- **A dotted line with round dots.** Use `linestyle=(0, (0.1, 2))` together
+  with `dash_capstyle="round"`. The very short dashes are drawn as dots.
+- **Shading the projection years** would also help the reader: see the
+  suggestion in [Figure 9.2](fig-9-2.qmd).
+
+## The complete script
+
+The full `python/fig-10-2.py`, as it runs:
+
+```` {.python filename="python/fig-10-2.py"}
+"""Figure 10.2: LA7: General Government Structural Primary Balance."""
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-10-2"
+
+data = read_chart_data(STEM)
+years = data["category"]
+
+# Each vintage of the projections: (colour, line style).
+vintages = {
+    "October 2026 WEO": ("#5B267A", "solid"),
+    "April 2026 WEO": ("#8752AA", (0, (5, 2))),
+    "October 2025 WEO": ("#AD7CC5", (0, (2, 2))),
+}
+
+fig, ax = new_chart(
+    title="LA7: General Government Structural Primary\nBalance",
+    subtitle="(Percent of potential GDP)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; and IMF staff\n"
+        "calculations.\n"
+        "Note: LA7 is simple average. Chile refers to the central government’s\n"
+        "structural non-mining primary balance. Colombia refers to the\n"
+        "consolidated public sector's structural non-oil primary balance. Peru refers\n"
+        "to the nonfinancial public sector’s structural primary balance. LA7 = Latin\n"
+        "America 7 (Brazil, Chile, Colombia, Mexico, Paraguay, Peru, Uruguay)."
+    ),
+    left=0.4,
+    right=0.2,
+    bottom_gap=0.35,
+)
+
+# The x-axis is drawn at zero, with short tick marks pointing up; the year
+# labels stay at the bottom of the chart.
+ax.axhline(0, color="black", linewidth=0.8)
+ax.vlines(range(2021, 2032), 0, 0.04, color="black", linewidth=0.6)
+
+for vintage, (colour, style) in vintages.items():
+    ax.plot(years, data[vintage], color=colour, linestyle=style, linewidth=1.8,
+            label=vintage)
+
+ax.set_xlim(2021, 2031)
+ax.set_xticks(range(2021, 2032, 2))
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+set_y_scale(ax, -3, 0.5, 0.5)
+ax.yaxis.set_major_formatter("{x:.1f}")
+ax.tick_params(axis="y", length=2.8)
+
+ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.03), handlelength=3.4,
+          labelspacing=0.1)
+
+save_chart(fig, STEM)
+````

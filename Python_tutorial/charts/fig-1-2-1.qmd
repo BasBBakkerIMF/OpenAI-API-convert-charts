@@ -1,0 +1,227 @@
+---
+title: "Figure 1.2.1: Repatriations and Border Apprehensions"
+---
+
+![Python: `python/fig-1-2-1.py`](../images/python/fig-1-2-1.png)
+
+Monthly repatriations to four countries as stacked bars, with border
+apprehensions as a line on a right-hand scale. Since December 2024 the
+repatriations are estimates.
+
+**New in this chart:**
+
+- monthly dates on the x-axis;
+- combining actual and estimated series;
+- converting units;
+- a label instead of a legend entry.
+
+## The data
+
+Sheet `data`, 78 rows (January 2020 to June 2026):
+
+| category | GTM | HND | SLV | NIC | GTM(est) | HND(est) | SLV(est) | NIC(est) | Apprehensions (right scale) |
+|---|---|---|---|---|---|---|---|---|---|
+| 2020-01-31 | 4280 | 2700 | 1740 | 200 | | | | | 8640 |
+
+Each country has two columns:
+
+- **the actual values** (`GTM`), up to November 2024;
+- **the estimates** (`GTM(est)`), from December 2024.
+
+In Excel these are separate series with the same colour. All values are
+numbers of persons.
+
+## The script
+
+### Preparing the data
+
+```python
+data = read_chart_data(STEM)
+dates = pd.to_datetime(data["category"])
+```
+
+`pd.to_datetime` makes sure the `category` column is treated as dates, so the
+x-axis becomes a time axis.
+
+```python
+# Each country has an actual series and an estimated one (from December
+# 2024). Use the actual value where there is one, otherwise the estimate.
+# Both are in persons; the chart shows thousands.
+repatriations = {
+    country: data[country].fillna(data[f"{country}(est)"]) / 1000
+    for country in country_colours
+}
+apprehensions = data["Apprehensions (right scale)"] / 1000
+```
+
+This builds a new dictionary with one combined series per country. It is a
+*dictionary comprehension*, like a list comprehension but producing
+`key: value` pairs.
+
+- **`fillna`.** `data["GTM"].fillna(data["GTM(est)"])` takes the actual value
+  and fills the empty months (`NaN`) with the estimate. The result is one
+  continuous series.
+- **Units.** Dividing by 1000 converts persons to thousands, the unit of the
+  chart.
+
+### Stacked bars on a date axis
+
+```python
+bottom = np.zeros(len(data))
+for country, colour in country_colours.items():
+    values = repatriations[country].fillna(0).to_numpy()
+    ax.bar(dates, values, bottom=bottom, width=24, color=colour,
+           label=country, align="center")
+    bottom += values
+```
+
+This is the usual pattern for [stacked bars](../techniques.qmd#sec-stacked).
+The order of `country_colours` (GTM, HND, SLV, NIC) is the order from the
+bottom up.
+
+- **Missing months.** Any month that is still empty is set to 0 with
+  `fillna(0)`, so it does not break the running total.
+- **Bar width.** On a date axis, `width` is measured in days. Bars 24 days
+  wide leave a small gap between the months.
+
+### The estimates marker
+
+```python
+ax.axvline(pd.Timestamp("2024-12-15"), color="black", linewidth=0.8,
+           linestyle=(0, (1, 1.5)))
+ax.text(pd.Timestamp("2025-04-01"), 19.45, "Estimates",
+        fontsize=9.7, fontstyle="italic", ha="left", va="center")
+```
+
+A dotted vertical line between November and December 2024 marks where the
+estimates start, with an italic label. Positions on a date axis are given as
+dates (`pd.Timestamp`). See [Dates on the x-axis](../techniques.qmd#sec-dates).
+
+### The date axis
+
+```python
+ax.set_xlim(pd.Timestamp("2020-01-01"), pd.Timestamp("2026-06-30"))
+ax.set_xticks(pd.date_range("2020-01-01", "2026-06-01", freq="7MS"))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))
+ax.tick_params(axis="x", labelrotation=90, labelsize=8.5, length=2.5)
+```
+
+The published chart labels every seventh month (Jan-20, Aug-20, Mar-21,
+...). `freq="7MS"` produces exactly those dates, and `"%b-%y"` formats them
+as "Jan-20".
+
+### The line on the right-hand scale
+
+```python
+ax_right = ax.twinx()
+ax_right.plot(dates, apprehensions, color="black", linewidth=2.4,
+              solid_capstyle="round", solid_joinstyle="round")
+ax_right.set_ylim(0, 80)
+...
+ax_right.text(pd.Timestamp("2021-09-01"), 65, "Apprehensions\n(right scale)",
+              fontsize=9.2, ha="left", va="center", linespacing=0.95)
+```
+
+The apprehensions line is not in the legend. As in the published chart, it is
+labelled with text next to the line instead. Because the text is placed on
+`ax_right`, the height 65 is in units of the right-hand scale.
+
+The legend only lists the four countries, in one row (`ncol=4`), with small
+square symbols (`handlelength=0.9, handleheight=0.9`).
+
+## The complete script
+
+The full `python/fig-1-2-1.py`, as it runs:
+
+```` {.python filename="python/fig-1-2-1.py"}
+"""Figure 1.2.1: Repatriations and Border Apprehensions."""
+import matplotlib.dates as mdates
+import numpy as np
+import pandas as pd
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-1-2-1"
+
+data = read_chart_data(STEM)
+dates = pd.to_datetime(data["category"])
+
+country_colours = {
+    "GTM": "#0070C0",
+    "HND": "#00A6A6",
+    "SLV": "#ED7D31",
+    "NIC": "#BFBFBF",
+}
+
+# Each country has an actual series and an estimated one (from December
+# 2024). Use the actual value where there is one, otherwise the estimate.
+# Both are in persons; the chart shows thousands.
+repatriations = {
+    country: data[country].fillna(data[f"{country}(est)"]) / 1000
+    for country in country_colours
+}
+apprehensions = data["Apprehensions (right scale)"] / 1000
+
+fig, ax = new_chart(
+    title="Repatriations and Border Apprehensions",
+    subtitle="(Thousands)",
+    caption=(
+        "Sources: US Customs and Border Protection; US Department of\n"
+        "Homeland Security; US Immigration and Customs Enforcement (ICE); and\n"
+        "IMF staff estimates.\n"
+        "Note: Repatriations include removals, administrative and enforcement\n"
+        "returns. Title 42 expulsions are not included. Since December 2024,\n"
+        "repatriations are estimated using ICE book-ins. The repatriations to book-\n"
+        "ins ratio is calculated through November 2024 and projected to remain\n"
+        "constant. Since data for book-ins are published through June 2026, this\n"
+        "allows to estimate the repatriations in 2026."
+    ),
+    caption_size=7.7,
+    left=0.35,
+    right=0.35,
+    bottom_gap=0.5,
+)
+
+# Stacked bars, one per month.
+bottom = np.zeros(len(data))
+for country, colour in country_colours.items():
+    values = repatriations[country].fillna(0).to_numpy()
+    ax.bar(dates, values, bottom=bottom, width=24, color=colour,
+           label=country, align="center")
+    bottom += values
+
+ax.axvline(pd.Timestamp("2024-12-15"), color="black", linewidth=0.8,
+           linestyle=(0, (1, 1.5)))
+ax.text(pd.Timestamp("2025-04-01"), 19.45, "Estimates",
+        fontsize=9.7, fontstyle="italic", ha="left", va="center")
+
+ax.set_xlim(pd.Timestamp("2020-01-01"), pd.Timestamp("2026-06-30"))
+ax.set_xticks(pd.date_range("2020-01-01", "2026-06-01", freq="7MS"))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b-%y"))
+ax.tick_params(axis="x", labelrotation=90, labelsize=8.5, length=2.5)
+
+ax.set_ylim(0, 20)
+ax.yaxis.set_major_locator(MultipleLocator(4))
+ax.tick_params(axis="y", length=2.5)
+
+ax.legend(
+    loc="upper left", bbox_to_anchor=(0.0, 1.0), ncol=4,
+    handlelength=0.9, handleheight=0.9, handletextpad=0.3,
+    columnspacing=0.8, fontsize=8.8,
+)
+
+# Line: apprehensions, on the right-hand scale.
+ax_right = ax.twinx()
+ax_right.plot(dates, apprehensions, color="black", linewidth=2.4,
+              solid_capstyle="round", solid_joinstyle="round")
+ax_right.set_ylim(0, 80)
+ax_right.yaxis.set_major_locator(MultipleLocator(20))
+ax_right.spines["right"].set_visible(True)
+ax_right.spines["top"].set_visible(False)
+ax_right.tick_params(axis="y", length=2.5)
+ax_right.text(pd.Timestamp("2021-09-01"), 65, "Apprehensions\n(right scale)",
+              fontsize=9.2, ha="left", va="center", linespacing=0.95)
+
+save_chart(fig, STEM)
+````

@@ -1,0 +1,207 @@
+---
+title: "Figure 6.2: LAC: Oil Price Pass-through"
+---
+
+![Python: `python/fig-6-2.py`](../images/python/fig-6-2.png)
+
+The distribution (density) of oil price pass-through across Latin American
+and Caribbean countries, with a dashed vertical line at the regional median.
+Pass-through is the change in domestic diesel prices divided by the change
+in international diesel prices. A value of 1 means that domestic prices
+follow world prices one for one; 0 means that they do not move at all, for
+example because prices are controlled or subsidised. The curve shows how
+common each value is: the higher the curve, the more countries have a
+pass-through near that value.
+
+**New in this chart:**
+
+- data in *long* format (one row per point, with a series column);
+- a chart without y-axis labels;
+- a vertical axis line at x = 0.
+
+## The data
+
+Sheet `data`, 89 rows. This is an XY (scatter) chart in Excel, so the data
+are points with x and y coordinates, stacked under each other with the
+series name in a column:
+
+| series | label | x | y |
+|---|---|---|---|
+| LAC | LAC | -0.30 | 0.19 |
+| ... | | | |
+| LAC average | LAC average | ... | ... |
+
+`LAC` is the density curve: many points close together, which drawn as a
+line look like a smooth curve. `LAC average` is the two end points of the
+dashed vertical line, at the median, one at the bottom and one at the top.
+
+This *long* format is how the extraction step stores every XY chart. A
+category chart has one column per series, all sharing the same x-values; an
+XY chart can have different x-values for each series, so each point is a row
+of its own. See [Figure 11.1](fig-11-1.qmd) for another chart in this
+format.
+
+## The script
+
+### Selecting the series
+
+```python
+data = read_chart_data(STEM)
+density = data[data["series"] == "LAC"].dropna(subset=["x", "y"])
+average = data[data["series"] == "LAC average"].dropna(subset=["x", "y"])
+```
+
+Each series is selected by filtering on the `series` column:
+
+- `data["series"] == "LAC"` gives a column of `True` and `False`, `True` on
+  the rows of the density;
+- `data[...]` keeps those rows, with all their columns.
+
+`dropna(subset=["x", "y"])` then removes rows where either coordinate is
+missing. Here that matters: 30 of the 87 rows of the density are empty,
+because the Excel range is longer than the curve. In a line, missing values
+would cause gaps, so they are dropped.
+
+```python
+purple = "#5B2678"
+```
+
+Both lines use the same purple, so the colour is stored once.
+
+### The curve and the median
+
+```python
+ax.plot(density["x"], density["y"], color=purple, linewidth=1.9,
+        solid_capstyle="round")
+ax.plot(average["x"], average["y"], color=purple, linewidth=1.2,
+        linestyle=(0, (4, 2.5)))
+```
+
+Both are ordinary lines through their points, with `ax.plot(x, y)`. matplotlib
+joins the points in the order of the rows, so the rows of the density must be
+sorted by x. They are, because that is how Excel draws the curve too.
+
+The median line has only two points, so it is a straight vertical line. It
+is thinner (1.2 points) and dashed: dashes 4 line widths long with gaps of
+2.5. See [Line styles](../techniques.qmd#sec-line-styles).
+
+### No y-scale, and an axis line at zero
+
+```python
+# The density has no numeric y-axis. A vertical line at x = 0 with tick marks
+# takes the place of the y-axis.
+ax.spines["left"].set_visible(False)
+ax.set_yticks([])
+ax.axvline(0, color="black", linewidth=0.7)
+ax.hlines(np.arange(0.2, 1.01, 0.2), -0.035, 0, color="black", linewidth=0.6)
+```
+
+A density's height has no useful unit: it is scaled so that the area under
+the curve is 1, and readers only need to compare heights. So the published
+chart shows no y-labels. Its vertical axis is at x = 0 (pass-through of
+zero), not at the left edge, so negative pass-through values are to the left
+of it.
+
+The script does four things:
+
+1. `ax.spines["left"].set_visible(False)` hides the normal left axis line.
+2. `ax.set_yticks([])` removes all y-ticks and their labels. An empty list
+   means "no ticks".
+3. `ax.axvline(0, ...)` draws a vertical line across the full height at
+   x = 0.
+4. `ax.hlines(y, xmin, xmax, ...)` draws short horizontal tick marks on that
+   line, pointing left from -0.035 to 0. `np.arange(0.2, 1.01, 0.2)` gives
+   0.2, 0.4, 0.6, 0.8, 1.0: five ticks. The end value is 1.01 rather than
+   1.0, because `np.arange` stops before its end value and small rounding
+   errors could otherwise drop the last tick.
+
+This is the [axis-line technique](../techniques.qmd#sec-axis-line) turned on
+its side: instead of a horizontal line at y = 0 with vertical ticks, a
+vertical line at x = 0 with horizontal ticks.
+
+### The x-axis
+
+```python
+ax.set_xlim(-0.5, 2.5)
+ax.set_xticks(np.arange(-0.5, 2.51, 0.5))
+ax.xaxis.set_major_formatter("{x:.1f}")
+ax.tick_params(axis="x", direction="in", length=2.8, pad=5)
+ax.set_ylim(0, 1)
+```
+
+- The x-axis runs from -0.5 to 2.5 with labels every 0.5: -0.5, 0.0, 0.5,
+  ..., 2.5. As above, the end value 2.51 makes sure 2.5 is included.
+- `"{x:.1f}"` writes every label with one decimal, so 0 appears as `0.0`
+  and 1 as `1.0`. See [Number formats](../techniques.qmd#sec-number-formats).
+- The tick marks point inwards.
+- The y-limits are 0 to 1. The curve's peak is at about 0.88, which leaves
+  some room above it. The median line's data run from 0 to 1.4, so it is
+  cut off at the top of the plot and spans the full height.
+
+There is no legend. The caption explains the dashed line.
+
+## Changing the chart
+
+- **Two distributions.** To compare LAC with another group, say advanced
+  economies, select a second series in the same way
+  (`data[data["series"] == "AE"]`), draw it in another colour and add a
+  legend.
+- **Shade the area under the curve.** Add
+  `ax.fill_between(density["x"], 0, density["y"], color=purple, alpha=0.15)`.
+- **Label the median.** Write its value next to the dashed line:
+  `ax.text(average["x"].iloc[0] + 0.05, 0.95, f"Median: {average['x'].iloc[0]:.2f}", va="top")`.
+
+## The complete script
+
+The full `python/fig-6-2.py`, as it runs:
+
+```` {.python filename="python/fig-6-2.py"}
+"""Figure 6.2: LAC: Oil Price Pass-through (distribution)."""
+import numpy as np
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-6-2"
+
+data = read_chart_data(STEM)
+density = data[data["series"] == "LAC"].dropna(subset=["x", "y"])
+average = data[data["series"] == "LAC average"].dropna(subset=["x", "y"])
+
+purple = "#5B2678"
+
+fig, ax = new_chart(
+    title="LAC: Oil Price Pass-through",
+    subtitle="(Fraction)",
+    caption=(
+        "Source: IMF staff calculations.\n"
+        "Note: Vertical dashed line refers to the median of the region. AE =\n"
+        "advanced economies; Pass-through is calculated as the percentage\n"
+        "change in domestic dollar retail diesel prices over the percentage change\n"
+        "in international diesel prices (both measured in US dollars). Pass-through\n"
+        "is trimmed at the 1 percent level. LAC = Latin America and the Caribbean."
+    ),
+    left=0.3,
+    right=0.2,
+    bottom_gap=0.3,
+)
+
+ax.plot(density["x"], density["y"], color=purple, linewidth=1.9,
+        solid_capstyle="round")
+ax.plot(average["x"], average["y"], color=purple, linewidth=1.2,
+        linestyle=(0, (4, 2.5)))
+
+# The density has no numeric y-axis. A vertical line at x = 0 with tick marks
+# takes the place of the y-axis.
+ax.spines["left"].set_visible(False)
+ax.set_yticks([])
+ax.axvline(0, color="black", linewidth=0.7)
+ax.hlines(np.arange(0.2, 1.01, 0.2), -0.035, 0, color="black", linewidth=0.6)
+
+ax.set_xlim(-0.5, 2.5)
+ax.set_xticks(np.arange(-0.5, 2.51, 0.5))
+ax.xaxis.set_major_formatter("{x:.1f}")
+ax.tick_params(axis="x", direction="in", length=2.8, pad=5)
+ax.set_ylim(0, 1)
+
+save_chart(fig, STEM)
+````

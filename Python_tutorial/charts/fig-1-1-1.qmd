@@ -1,0 +1,185 @@
+---
+title: "Figure 1.1.1: US Citizen Departures to the Caribbean"
+---
+
+![Python: `python/fig-1-1-1.py`](../images/python/fig-1-1-1.png)
+
+Monthly departures for three years as bars side by side, with the
+year-over-year change as a line on a right-hand scale.
+
+**New in this chart:**
+
+- grouped bars;
+- a right-hand scale built directly with `twinx()`;
+- a legend that combines bars from one axes object with a line from another.
+
+## The data
+
+Sheet `data`, 6 rows (January to June):
+
+| category | 2019 | 2025 | 2026 | Year-over-year percent change (right scale) |
+|---|---|---|---|---|
+| Jan | 0.289 | 0.343 | 0.351 | 2.33 |
+
+The column names are the years, as text. That is why the script uses the
+strings `"2019"`, `"2025"` and `"2026"`.
+
+## The script
+
+```python
+years = ["2019", "2025", "2026"]
+year_colours = {"2019": "#0873B2", "2025": "#BFC0C2", "2026": "#A982BA"}
+yoy = "Year-over-year percent change (right scale)"
+```
+
+The long column name of the line series is stored once in `yoy`, so it does
+not have to be typed again.
+
+### Grouped bars
+
+```python
+x = np.arange(len(data))
+bar_width = 0.82 / len(years)
+for i, year in enumerate(years):
+    offset = (i - (len(years) - 1) / 2) * bar_width
+    ax.bar(x + offset, data[year], width=bar_width, color=year_colours[year], label=year)
+```
+
+Each month is a category at position 0, 1, 2, .... The three bars of a month
+together take 0.82 of the space between months, so each bar is 0.82 / 3
+wide.
+
+`enumerate(years)` numbers the years 0, 1, 2. The offset is then -1, 0 and
++1 bar widths, so the middle bar sits exactly on the month's position. See
+[Grouped bars](../techniques.qmd#sec-grouped).
+
+```python
+ax.set_xticks(x, data["category"])
+ax.set_xlim(-0.6, len(data) - 0.4)
+ax.set_ylim(0, 0.8)
+ax.yaxis.set_major_locator(MultipleLocator(0.2))
+ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+ax.tick_params(axis="x", length=0, pad=6)
+ax.tick_params(axis="y", direction="in", length=3, pad=6)
+```
+
+- **Number format.** `FormatStrFormatter("%.1f")` writes the y-labels with
+  one decimal (0.0, 0.2, ...), as in the published chart. See [Number
+  formats](../techniques.qmd#sec-number-formats).
+- **No x-ticks.** `length=0` hides the x-axis ticks, as is usual for bar
+  charts.
+
+### The line on the right-hand scale
+
+```python
+ax_right = ax.twinx()
+ax_right.plot(x, data[yoy], color="black", linewidth=1.8, solid_capstyle="round")
+ax_right.set_ylim(0, 8)
+ax_right.yaxis.set_major_locator(MultipleLocator(2))
+ax_right.spines["right"].set_visible(True)
+ax_right.spines["top"].set_visible(False)
+ax_right.tick_params(axis="y", direction="in", length=3, pad=6)
+```
+
+This is what `add_right_axis()` from `chart_style` does, written out:
+
+- **The twin.** `twinx()` creates a second plot area with the same x-axis and
+  its own y-axis.
+- **The right spine.** The house style hides the right spine, so it is
+  switched back on.
+
+The line is drawn on `ax_right`, so its values are read against the 0–8
+scale. See [A right-hand scale](../techniques.qmd#sec-right-scale).
+
+### One legend for both scales
+
+```python
+handles, labels = ax.get_legend_handles_labels()
+handles.append(Line2D([], [], color="black", linewidth=1.8))
+labels.append(yoy)
+ax_right.legend(
+    handles, labels,
+    loc="upper left", bbox_to_anchor=(0.0, 1.02),
+    handlelength=3.2, handleheight=0.9, labelspacing=0.1,
+    borderaxespad=0.2, fontsize=9.5,
+)
+```
+
+`ax.get_legend_handles_labels()` returns what the legend of `ax` would show:
+the three bar series with their labels. A sample line for the right-scale
+series is added by hand (`Line2D([], [], ...)` is a line with no data, used
+only as a legend symbol). The legend is placed on `ax_right`, which lies on
+top, so the bars cannot cover it.
+
+## The complete script
+
+The full `python/fig-1-1-1.py`, as it runs:
+
+```` {.python filename="python/fig-1-1-1.py"}
+"""Figure 1.1.1: US Citizen Departures to the Caribbean."""
+import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-1-1-1"
+
+data = read_chart_data(STEM)
+
+years = ["2019", "2025", "2026"]
+year_colours = {"2019": "#0873B2", "2025": "#BFC0C2", "2026": "#A982BA"}
+yoy = "Year-over-year percent change (right scale)"
+
+fig, ax = new_chart(
+    title="US Citizen Departures to the Caribbean",
+    subtitle="(Millions, unless noted otherwise)",
+    caption=(
+        "Sources: US International Trade Administration; and IMF staff\n"
+        "calculations.\n"
+        "Note: Data include 15 countries and exclude Jamaica."
+    ),
+    title_size=13.5,
+    subtitle_size=11.5,
+    caption_size=9,
+    left=0.4,
+    right=0.35,
+    bottom_gap=0.3,
+)
+
+# Bars: one group per month, one bar per year.
+x = np.arange(len(data))
+bar_width = 0.82 / len(years)
+for i, year in enumerate(years):
+    offset = (i - (len(years) - 1) / 2) * bar_width
+    ax.bar(x + offset, data[year], width=bar_width, color=year_colours[year], label=year)
+
+ax.set_xticks(x, data["category"])
+ax.set_xlim(-0.6, len(data) - 0.4)
+ax.set_ylim(0, 0.8)
+ax.yaxis.set_major_locator(MultipleLocator(0.2))
+ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+ax.tick_params(axis="x", length=0, pad=6)
+ax.tick_params(axis="y", direction="in", length=3, pad=6)
+
+# Line: year-over-year change, on the right-hand scale.
+ax_right = ax.twinx()
+ax_right.plot(x, data[yoy], color="black", linewidth=1.8, solid_capstyle="round")
+ax_right.set_ylim(0, 8)
+ax_right.yaxis.set_major_locator(MultipleLocator(2))
+ax_right.spines["right"].set_visible(True)
+ax_right.spines["top"].set_visible(False)
+ax_right.tick_params(axis="y", direction="in", length=3, pad=6)
+
+handles, labels = ax.get_legend_handles_labels()
+handles.append(Line2D([], [], color="black", linewidth=1.8))
+labels.append(yoy)
+ax_right.legend(
+    handles, labels,
+    loc="upper left", bbox_to_anchor=(0.0, 1.02),
+    handlelength=3.2, handleheight=0.9, labelspacing=0.1,
+    borderaxespad=0.2, fontsize=9.5,
+)
+
+save_chart(fig, STEM)
+````

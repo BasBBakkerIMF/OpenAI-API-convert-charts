@@ -1,0 +1,209 @@
+---
+title: "Figure 1.2.3: CA4: Enforcement Impact on Remittance Growth"
+---
+
+![Python: `python/fig-1-2-3.py`](../images/python/fig-1-2-3.png)
+
+An event-study chart: the estimated response of remittance growth to
+Central America (CA4) in the six months before and after a change in US
+immigration enforcement. Month 0 is the shock. The line is the estimated
+effect and the shaded area its 90 percent confidence interval. Where the
+band includes zero, the effect is not statistically significant. The months
+before the shock serve as a check: there, the estimated effect should be
+close to zero.
+
+**New in this chart:**
+
+- negative x-values (months before the shock);
+- a dotted line marking the shock;
+- tick marks only where they do not collide with that line;
+- an x-axis title.
+
+## The data
+
+Sheet `data`, 13 rows (months -6 to 6):
+
+| category | ci_lo | range | coef |
+|---|---|---|---|
+| -6 | -6.78 | 15.58 | 1.66 |
+
+- `coef` is the estimated effect, drawn as the line.
+- `ci_lo` is the lower edge of the confidence interval.
+- `range` is the width of the band, stacked on top of `ci_lo` in Excel, as
+  in other band charts. The upper edge is `ci_lo + range`.
+
+The `category` column holds the months as numbers, from -6 to 6, so they can
+go on a numeric x-axis directly. Negative x-values need no special
+treatment.
+
+## The script
+
+### The band edges
+
+```python
+months = data["category"]
+
+# In Excel the confidence band is a stacked area: "ci_lo" plus "range".
+ci_lower = data["ci_lo"]
+ci_upper = data["ci_lo"] + data["range"]
+```
+
+The upper edge is computed once and given a name, so the drawing code reads
+naturally. See [Shaded bands](../techniques.qmd#sec-bands).
+
+### The frame
+
+`new_chart()` is called with `title_size=13.5`, half a point larger than the
+default, as in the published chart. `bottom_gap=0.5` is larger than usual,
+because below the month labels there is also an axis title.
+
+### The band
+
+```python
+ax.fill_between(months, ci_lower, ci_upper, color="#FCE4D4", alpha=0.9, linewidth=0)
+```
+
+A pale orange band from the lower to the upper edge. `alpha=0.9` makes it
+very slightly transparent, which on a white background just makes it a
+touch lighter. `linewidth=0` removes the outline. The band is drawn first,
+so everything after it lies on top.
+
+### The axis line and the shock
+
+```python
+# The x-axis is drawn at zero, with short tick marks pointing up, and a
+# dotted line marks the month of the shock.
+ax.axhline(0, color="#333333", linewidth=0.9)
+ax.vlines(months[months != 0], 0, 0.55, color="#333333", linewidth=0.7)
+ax.axvline(0, color="#111111", linewidth=1.0, linestyle=(0, (1, 1.5)))
+```
+
+The horizontal axis is drawn at zero, in the middle of the plot, while the
+month labels stay at the bottom. See [An axis line at
+zero](../techniques.qmd#sec-axis-line).
+
+- **The tick marks** are short vertical lines from 0 to 0.55, one per month.
+  The height is in data units: 0.55 on a range of 30 (-15 to 15) is about
+  2 percent of the plot height.
+- **No tick at the shock.** `months[months != 0]` keeps all months except
+  month 0, because there the dotted vertical line takes the place of the
+  tick. This is the pandas way of filtering: `months != 0` gives a column of
+  `True` and `False`, and putting it in square brackets keeps the values
+  where it is `True`.
+- **The dotted line.** `ax.axvline(0, ...)` draws a vertical line across the
+  full height of the plot at month 0. `linestyle=(0, (1, 1.5))` gives short
+  dots with slightly longer gaps; the lengths are in line widths. See [Line
+  styles](../techniques.qmd#sec-line-styles).
+
+### The estimate
+
+```python
+ax.plot(months, data["coef"], color="#C85C0A", linewidth=2.2,
+        solid_capstyle="round", solid_joinstyle="round")
+```
+
+The estimate is drawn last, so it lies on top of the band and the axis
+lines. It is a thick (2.2 points) dark orange line, the same hue as the
+band. Round caps and joins avoid sharp corners at each month.
+
+### The axes
+
+```python
+ax.set_xlim(-6, 6)
+ax.set_xticks(range(-6, 7))
+ax.set_xlabel("Months relative to shock", fontsize=9, labelpad=7)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+ax.set_ylim(-15, 15)
+ax.yaxis.set_major_locator(MultipleLocator(5))
+ax.tick_params(axis="y", direction="in", length=2.5, pad=5)
+```
+
+- **The x-axis** runs exactly from -6 to 6, so the line and the band start
+  and end at the edges of the plot.
+- **Ticks.** `range(-6, 7)` is -6, -5, ..., 6, a label for every month. A
+  Python `range` stops *before* its second number, hence the 7.
+- **The axis title.** `ax.set_xlabel()` writes a title under the labels.
+  `labelpad=7` puts 7 points between the labels and the title. Most REO
+  charts have no axis titles, because the subtitle gives the unit; here the
+  x-axis needs one, since "months relative to shock" is not obvious from the
+  numbers alone.
+- **The bottom spine** and its tick marks are hidden, because the axis line
+  is now at zero.
+- **The y-axis** runs from -15 to 15 with a tick every 5, symmetric around
+  zero. The ticks point inwards (`direction="in"`).
+
+There is no legend. The caption explains the band.
+
+## Changing the chart
+
+- **Mark the shock with a label.** Add
+  `ax.text(0.2, 14, "Shock", fontsize=8, fontstyle="italic", va="top")`,
+  just to the right of the dotted line, near the top.
+- **A longer window.** For months -12 to 12, change the limits to
+  `(-12, 12)` and label every second month: `range(-12, 13, 2)`. The
+  `months != 0` filter keeps working.
+- **A line at the band edges.** Some event-study charts outline the
+  interval instead of shading it: `ax.plot(months, ci_lower, linestyle="--")`
+  and the same for `ci_upper`.
+
+## The complete script
+
+The full `python/fig-1-2-3.py`, as it runs:
+
+```` {.python filename="python/fig-1-2-3.py"}
+"""Figure 1.2.3: CA4: Enforcement Impact on Remittance Growth."""
+from matplotlib.ticker import MultipleLocator
+
+from chart_style import new_chart, read_chart_data, save_chart
+
+STEM = "fig-1-2-3"
+
+data = read_chart_data(STEM)
+months = data["category"]
+
+# In Excel the confidence band is a stacked area: "ci_lo" plus "range".
+ci_lower = data["ci_lo"]
+ci_upper = data["ci_lo"] + data["range"]
+
+fig, ax = new_chart(
+    title="CA4: Enforcement Impact on Remittance Growth",
+    subtitle="(Percentage points)",
+    caption=(
+        "Source: IMF staff calculations.\n"
+        "Note: Estimated response of remittance growth to changes in immigration\n"
+        "enforcement based on panel local projections (Carare and others\n"
+        "(forthcoming)). Regressions include country and time fixed effects and\n"
+        "macroeconomic controls. Shaded area denotes 90 percent wild cluster\n"
+        "bootstrap confidence intervals."
+    ),
+    title_size=13.5,
+    left=0.4,
+    right=0.2,
+    bottom_gap=0.5,
+)
+
+ax.fill_between(months, ci_lower, ci_upper, color="#FCE4D4", alpha=0.9, linewidth=0)
+
+# The x-axis is drawn at zero, with short tick marks pointing up, and a
+# dotted line marks the month of the shock.
+ax.axhline(0, color="#333333", linewidth=0.9)
+ax.vlines(months[months != 0], 0, 0.55, color="#333333", linewidth=0.7)
+ax.axvline(0, color="#111111", linewidth=1.0, linestyle=(0, (1, 1.5)))
+
+ax.plot(months, data["coef"], color="#C85C0A", linewidth=2.2,
+        solid_capstyle="round", solid_joinstyle="round")
+
+ax.set_xlim(-6, 6)
+ax.set_xticks(range(-6, 7))
+ax.set_xlabel("Months relative to shock", fontsize=9, labelpad=7)
+ax.spines["bottom"].set_visible(False)
+ax.tick_params(axis="x", length=0, pad=5)
+
+ax.set_ylim(-15, 15)
+ax.yaxis.set_major_locator(MultipleLocator(5))
+ax.tick_params(axis="y", direction="in", length=2.5, pad=5)
+
+save_chart(fig, STEM)
+````

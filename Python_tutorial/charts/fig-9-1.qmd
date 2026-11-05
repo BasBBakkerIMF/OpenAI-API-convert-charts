@@ -1,0 +1,199 @@
+---
+title: "Figure 9.1: Contributions to Real GDP Growth"
+---
+
+![Python: `python/fig-9-1.py`](../images/python/fig-9-1.png)
+
+A growth accounting chart. Stacked bars show the contributions of total
+factor productivity, labor and capital, and a dot shows total growth. There
+are five regions for two periods.
+
+**New in this chart:**
+
+- a table of labels *inside* the plot, between 0 and -1;
+- a negative value in a stack;
+- a legend mixing boxes and a dot.
+
+## The data
+
+Sheet `data`, 10 rows, without a category column:
+
+| Total factor productivity | Labor | Capital stock | Real GDP growth |
+|---|---|---|---|
+| -0.004 | 0.89 | 1.59 | 2.47 |
+
+The rows are the five regions for 2000–19, then the same five for 2026–31.
+The labels are not in the extracted data and are typed into the script:
+
+```python
+regions = ["LA7", "EME", "EMA", "USA", "CAN"]
+periods = ["2000–19", "2026–31"]
+```
+
+## The script
+
+### Stacked bars, starting from zero
+
+```python
+x = np.arange(1, len(data) + 1)
+bottom = np.zeros(len(data))
+for component, colour in components.items():
+    values = data[component].clip(lower=0).to_numpy()
+    ax.bar(x, values, bottom=bottom, width=0.56, color=colour)
+    bottom += values
+
+ax.scatter(x, data["Real GDP growth"], s=75, color="black", zorder=3)
+```
+
+The bars are at positions 1 to 10. This makes the separator positions below
+easy to write: 0.5, 1.5, and so on.
+
+One TFP value is negative, but only by a negligible amount (-0.004).
+`clip(lower=0)` sets it to zero. Otherwise matplotlib would draw it
+downwards from zero, and the labour bar stacked on it would start slightly
+below zero. In the published chart all stacks start at zero. See [Stacked
+bars](../techniques.qmd#sec-stacked).
+
+### The table of labels
+
+```python
+# Category labels sit inside the plot, between 0 and -1, in a small table:
+# the region names in boxes, and the period names below the plot.
+ax.axhline(0, color="black", linewidth=0.7)
+ax.hlines(-1, 0.5, 10.5, color="black", linewidth=0.7, clip_on=False)
+ax.vlines([1.5, 2.5, 3.5, 4.5, 6.5, 7.5, 8.5, 9.5], -1, 0,
+          color="black", linewidth=0.6)
+ax.vlines([0.5, 5.5, 10.5], -2.0, 0, color="black", linewidth=0.6, clip_on=False)
+for xi, region in zip(x, regions * 2):
+    ax.text(xi, -0.5, region, ha="center", va="center", fontsize=9.8)
+for centre, period in zip((3, 8), periods):
+    ax.text(centre, -1.5, period, ha="center", va="center", fontsize=9.8)
+```
+
+The published chart uses the strip between 0 and -1 on the y-axis as a
+table. Each region name sits in its own cell, with the period names below the
+plot. The script builds that table in data units:
+
+- **Rows.** Horizontal lines at 0 and -1 form the top and bottom of the
+  region row.
+- **Columns.** Short vertical lines between the bars, from -1 to 0, separate
+  the regions.
+- **Periods.** Longer lines at 0.5, 5.5 and 10.5 go down to -2, below the
+  plot, and frame the two periods. `clip_on=False` lets them be drawn there.
+- **Text.** The region names are centred at -0.5 and the period names at
+  -1.5.
+
+Because the table is in data units, it scales with the y-axis. This differs
+from the label tables in [10.1](fig-10-1.qmd) or [12.1](fig-12-1.qmd), which
+use fractions of the plot height. Both approaches are explained under
+[Tables of labels below the plot](../techniques.qmd#sec-label-tables).
+
+```python
+ax.set_xlim(0.5, 10.5)
+ax.set_xticks([])
+ax.spines["bottom"].set_visible(False)
+
+set_y_scale(ax, -1, 7, 1)
+```
+
+The normal x-axis is switched off entirely (`set_xticks([])`). The y-scale
+starts at -1, to include the label row.
+
+### The legend
+
+```python
+legend_handles = [Patch(color=c) for c in components.values()]
+legend_handles.append(Line2D([], [], linestyle="none", marker="o",
+                             markersize=8, color="black"))
+ax.legend(legend_handles, [*components, "Real GDP growth"], ...)
+```
+
+The bars were drawn without labels, so the legend is built by hand: a filled
+box (`Patch`) for each component and a dot for real GDP growth. See
+[Legends](../techniques.qmd#sec-legends).
+
+## The complete script
+
+The full `python/fig-9-1.py`, as it runs:
+
+```` {.python filename="python/fig-9-1.py"}
+"""Figure 9.1: Contributions to Real GDP Growth."""
+import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+
+from chart_style import new_chart, read_chart_data, save_chart, set_y_scale
+
+STEM = "fig-9-1"
+
+data = read_chart_data(STEM)
+
+# Stacking order, from the bottom up, and colours. (Total factor
+# productivity is negative only once, by a negligible amount; it is drawn
+# from zero, as in Excel.)
+components = {
+    "Total factor productivity": "#009DA8",
+    "Labor": "#0065A8",
+    "Capital stock": "#CE5B13",
+}
+
+# The category labels are not part of the extracted data; they are taken
+# from the published chart. The first five bars are 2000-19, the last five
+# 2026-31.
+regions = ["LA7", "EME", "EMA", "USA", "CAN"]
+periods = ["2000–19", "2026–31"]
+
+fig, ax = new_chart(
+    title="Contributions to Real GDP Growth",
+    subtitle="(Year-over-year percent change)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; Penn World Table 11.0\n"
+        "database; and IMF staff calculations.\n"
+        "Note: Aggregates are purchasing-power-parity GDP-weighted averages.\n"
+        "EM = emerging; EMA = EM Asia (India, Indonesia, Malaysia, Philippines,\n"
+        "Thailand); EME = EM Europe (Bosnia and Herzegovina, Hungary, Poland,\n"
+        "Romania, Serbia); LA7 = Latin America 7 (Brazil, Chile, Colombia,\n"
+        "Mexico, Paraguay; Peru, Uruguay)."
+    ),
+    left=0.3,
+    right=0.15,
+    bottom_gap=0.4,
+)
+
+x = np.arange(1, len(data) + 1)
+bottom = np.zeros(len(data))
+for component, colour in components.items():
+    values = data[component].clip(lower=0).to_numpy()
+    ax.bar(x, values, bottom=bottom, width=0.56, color=colour)
+    bottom += values
+
+ax.scatter(x, data["Real GDP growth"], s=75, color="black", zorder=3)
+
+# Category labels sit inside the plot, between 0 and -1, in a small table:
+# the region names in boxes, and the period names below the plot.
+ax.axhline(0, color="black", linewidth=0.7)
+ax.hlines(-1, 0.5, 10.5, color="black", linewidth=0.7, clip_on=False)
+ax.vlines([1.5, 2.5, 3.5, 4.5, 6.5, 7.5, 8.5, 9.5], -1, 0,
+          color="black", linewidth=0.6)
+ax.vlines([0.5, 5.5, 10.5], -2.0, 0, color="black", linewidth=0.6, clip_on=False)
+for xi, region in zip(x, regions * 2):
+    ax.text(xi, -0.5, region, ha="center", va="center", fontsize=9.8)
+for centre, period in zip((3, 8), periods):
+    ax.text(centre, -1.5, period, ha="center", va="center", fontsize=9.8)
+
+ax.set_xlim(0.5, 10.5)
+ax.set_xticks([])
+ax.spines["bottom"].set_visible(False)
+
+set_y_scale(ax, -1, 7, 1)
+ax.tick_params(axis="y", direction="in", length=2.3)
+
+legend_handles = [Patch(color=c) for c in components.values()]
+legend_handles.append(Line2D([], [], linestyle="none", marker="o",
+                             markersize=8, color="black"))
+ax.legend(legend_handles, [*components, "Real GDP growth"],
+          loc="upper left", bbox_to_anchor=(0.33, 1.0), handlelength=0.9,
+          handleheight=0.9, handletextpad=0.4, labelspacing=0.1)
+
+save_chart(fig, STEM)
+````

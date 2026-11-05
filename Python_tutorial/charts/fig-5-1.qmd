@@ -1,0 +1,218 @@
+---
+title: "Figure 5.1: Labor Productivity Gap against the United States"
+---
+
+![Python: `python/fig-5-1.py`](../images/python/fig-5-1.png)
+
+Labor productivity in four economies, as the gap with the United States in
+percent of US productivity. All gaps are negative: every region is less
+productive than the United States. The three Latin American and Caribbean
+groups are 50 to 75 percent below; Canada is much closer, about 25 percent
+below, and is drawn on a right-hand scale so its movements remain visible.
+
+**New in this chart:** two scales that are both entirely negative.
+
+## The data
+
+Sheet `data`, 8 rows (2019 to 2026):
+
+| category | LA7 | CAPDR | CARIB | CAN (right scale) |
+|---|---|---|---|---|
+| 2019 | -69.3 | -66.7 | -51.0 | -22.7 |
+
+The years are numbers, so they can be used on the x-axis directly. The
+column name `CAN (right scale)` comes from the Excel series name. The
+extraction keeps it as it is, and the script uses it both to read the data
+and as the legend label.
+
+## The script
+
+### The series and their colours
+
+```python
+data = read_chart_data(STEM)
+years = data["category"]
+
+left_series = {"LA7": "#5B2A7F", "CAPDR": "#CE5A0A", "CARIB": "#009EAD"}
+canada = "CAN (right scale)"
+canada_colour = "#666666"
+```
+
+The three left-scale series are in one dictionary, so a loop can draw them.
+Canada is kept apart, in two variables, because it is drawn on a different
+axes object. Storing the long column name in `canada` once avoids typing it
+again, and a typo, later.
+
+### The frame
+
+`new_chart()` is called with a nine-line caption, so the plot area is
+shorter than usual. Two arguments are worth noting:
+
+- `caption_size=8.4`, a little smaller than the default 8.5, so the longest
+  caption line fits within the 5-inch width;
+- `left=0.4` and `right=0.4`, equal margins, because both sides now carry
+  tick labels such as `-75` and `-32`. The minus sign makes the labels wider
+  than positive ones.
+
+### Two scales
+
+```python
+for series, colour in left_series.items():
+    ax.plot(years, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round")
+
+ax_right = add_right_axis(ax, (-32, -22), 2)
+ax_right.plot(years, data[canada], color=canada_colour, linewidth=1.8,
+              solid_capstyle="round")
+ax_right.tick_params(axis="y", length=2.8)
+```
+
+First the loop draws LA7, CAPDR and CARIB on `ax`, the left scale. Then
+`add_right_axis()` creates `ax_right`, a second plot area on top of the
+first that shares the x-axis but has its own y-axis on the right, from -32
+to -22 with a tick every 2. Canada is drawn on that axes object. See [A
+right-hand scale](../chart-style.qmd#sec-right-axis).
+
+The lines have no `label=` argument, because the legend is built by hand
+below.
+
+**Lining up the ticks.** The left-hand scale runs from -75 to -50 in steps
+of 5 and the right-hand scale from -32 to -22 in steps of 2. Both have five
+intervals, so each tick on the left is level with one on the right. This is
+not automatic. If you change one scale, choose the other so that
+
+$$\frac{\text{high} - \text{low}}{\text{step}}$$
+
+is the same on both sides. Otherwise the ticks on the two sides fall at
+different heights, which is hard to read.
+
+**Negative scales** need no special treatment: `set_y_scale(ax, -75, -50,
+5)` and `add_right_axis(ax, (-32, -22), 2)` work as for positive ones. The
+lowest value is always the first argument. Because the house style turns off
+`axes.unicode_minus`, the labels use a plain hyphen (`-75`) as Excel does,
+not the typographic minus sign that matplotlib uses by default. See [The
+house style](../chart-style.qmd#sec-rcparams).
+
+### The axes
+
+```python
+ax.set_xlim(2018.5, 2026.5)
+ax.set_xticks(years)
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, -75, -50, 5)
+ax.tick_params(axis="y", length=2.8)
+```
+
+With only eight years, every year is labelled: `ax.set_xticks(years)` puts a
+tick at each value of the `category` column. The limits leave half a year of
+margin at each end.
+
+### The legend
+
+```python
+styles = {**left_series, canada: canada_colour}
+ax_right.legend(
+    [Line2D([], [], color=c, linewidth=1.8) for c in styles.values()],
+    list(styles),
+    loc="upper right", bbox_to_anchor=(0.99, 0.98), handlelength=3.0,
+    labelspacing=0.1,
+)
+```
+
+Each axes object only knows its own lines, so neither `ax.legend()` nor
+`ax_right.legend()` would list all four series. The script builds the
+legend itself:
+
+1. `{**left_series, canada: canada_colour}` makes one dictionary with all
+   four names and colours, in legend order. `**` unpacks the first
+   dictionary into the new one.
+2. `Line2D([], [], color=c, linewidth=1.8)` is a line with no data, used
+   only as a legend sample. The list comprehension makes one for each
+   colour.
+3. `list(styles)` gives the four names, in the same order.
+
+The legend is added to `ax_right`, the axes object on top, so no line is
+drawn over it. It sits in the top right, where the lines leave room. This is
+the same pattern as in [Figure 3.4](fig-3-4.qmd). See [A right-hand
+scale](../techniques.qmd#sec-right-scale).
+
+## Changing the chart
+
+- **One scale only.** If the gaps were similar in size, you would delete the
+  `add_right_axis()` line, draw Canada on `ax` and give each line a `label=`.
+  Then a plain `ax.legend()` is enough.
+- **A different right-hand range.** Keep five intervals, for example
+  `(-35, -20)` with a step of 3.
+
+## The complete script
+
+The full `python/fig-5-1.py`, as it runs:
+
+```` {.python filename="python/fig-5-1.py"}
+"""Figure 5.1: Labor Productivity Gap against the United States."""
+from matplotlib.lines import Line2D
+
+from chart_style import (
+    add_right_axis,
+    new_chart,
+    read_chart_data,
+    save_chart,
+    set_y_scale,
+)
+
+STEM = "fig-5-1"
+
+data = read_chart_data(STEM)
+years = data["category"]
+
+left_series = {"LA7": "#5B2A7F", "CAPDR": "#CE5A0A", "CARIB": "#009EAD"}
+canada = "CAN (right scale)"
+canada_colour = "#666666"
+
+fig, ax = new_chart(
+    title="Labor Productivity Gap against the United States",
+    subtitle="(Percent of US labor productivity)",
+    caption=(
+        "Sources: IMF, World Economic Outlook database; and IMF staff\n"
+        "calculations.\n"
+        "Note: Labor productivity is measured as real GDP in PPP international\n"
+        "dollars divided by total employment. The gap is measured as the\n"
+        "difference in the level of labor productivity relative to the United States.\n"
+        "Aggregates are purchasing-power-parity GDP-weighted averages.\n"
+        "CAPDR = Central America, Panama, and the Dominican Republic; CARIB\n"
+        "= Caribbean; LA7 = Latin America 7 (Brazil, Chile, Colombia, Mexico,\n"
+        "Paraguay, Peru, Uruguay); PPP = purchasing power parity."
+    ),
+    caption_size=8.4,
+    left=0.4,
+    right=0.4,
+    bottom_gap=0.3,
+)
+
+for series, colour in left_series.items():
+    ax.plot(years, data[series], color=colour, linewidth=1.8,
+            solid_capstyle="round")
+
+ax_right = add_right_axis(ax, (-32, -22), 2)
+ax_right.plot(years, data[canada], color=canada_colour, linewidth=1.8,
+              solid_capstyle="round")
+ax_right.tick_params(axis="y", length=2.8)
+
+ax.set_xlim(2018.5, 2026.5)
+ax.set_xticks(years)
+ax.tick_params(axis="x", length=2.8, pad=5)
+
+set_y_scale(ax, -75, -50, 5)
+ax.tick_params(axis="y", length=2.8)
+
+styles = {**left_series, canada: canada_colour}
+ax_right.legend(
+    [Line2D([], [], color=c, linewidth=1.8) for c in styles.values()],
+    list(styles),
+    loc="upper right", bbox_to_anchor=(0.99, 0.98), handlelength=3.0,
+    labelspacing=0.1,
+)
+
+save_chart(fig, STEM)
+````
